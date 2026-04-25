@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Great Lakes Shipwrecks: Cause Streamgraph by Lake</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: #f4f4f4;
+      color: #222;
+    }
+
+    .container {
+      max-width: 1350px;
+      margin: 0 auto;
+      padding: 20px 24px 40px 24px;
+    }
+
+    h1 {
+      margin: 0 0 6px 0;
+      font-size: 28px;
+    }
+
+    .subtitle {
+      margin-bottom: 18px;
+      color: #555;
+      font-size: 15px;
+      line-height: 1.45;
+    }
+
+    .tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 18px;
+    }
+
+    .tab-btn {
+      border: 1px solid #bbb;
+      background: white;
+      padding: 8px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: 0.2s ease;
+    }
+
+    .tab-btn:hover {
+      background: #e9f2ff;
+      border-color: #7aa7e8;
+    }
+
+    .tab-btn.active {
+      background: #2f5aa8;
+      color: white;
+      border-color: #2f5aa8;
+      font-weight: 600;
+    }
+
+    .chart-wrapper {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      padding: 18px;
+    }
+
+    svg {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+
+    .axis path,
+    .axis line {
+      stroke: #aaa;
+    }
+
+    .axis text {
+      fill: #444;
+      font-size: 12px;
+    }
+
+    .grid line {
+      stroke: #ddd;
+      stroke-opacity: 0.75;
+      shape-rendering: crispEdges;
+    }
+
+    .grid path {
+      stroke: none;
+    }
+
+    .baseline {
+      stroke: #111;
+      stroke-width: 10px;
+    }
+
+    .layer {
+      opacity: 0.9;
+      transition: opacity 0.15s ease, stroke-width 0.15s ease;
+      stroke: white;
+      stroke-width: 0.7px;
+    }
+
+    .layer:hover {
+      opacity: 1;
+      stroke-width: 1.4px;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px 18px;
+      margin-top: 16px;
+      font-size: 13px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      cursor: default;
+    }
+
+    .legend-swatch {
+      width: 14px;
+      height: 14px;
+      border-radius: 3px;
+      flex: 0 0 14px;
+    }
+
+    .tooltip {
+      position: absolute;
+      pointer-events: none;
+      background: rgba(25, 25, 25, 0.95);
+      color: white;
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 13px;
+      line-height: 1.4;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.25);
+      opacity: 0;
+      transition: opacity 0.15s ease;
+      max-width: 260px;
+    }
+
+    .annotation {
+      margin-top: 12px;
+      color: #666;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .axis-title {
+      fill: #333;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .section-label {
+      fill: #333;
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    .muted-label {
+      fill: #666;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Shipwreck Causes & Their Resulting Fatalities</h1>
+
+    <div class="tabs" id="tabs"></div>
+
+    <div class="chart-wrapper">
+      <svg id="chart" viewBox="0 0 1250 720"></svg>
+      <div class="legend" id="legend"></div>
+      <div class="annotation">
+        Top half: number of shipwrecks for the selected cause per decade.
+        Bottom half: deaths from that same cause per decade.
+      </div>
+    </div>
+  </div>
+
+  <div class="tooltip" id="tooltip"></div>
+
+<script>
+  // At some point, fuse this file with the ApproxCoords_filled so you only have one source
+  const fileName = "GreatLakesShipwrecks.csv";
+
+  const svg = d3.select("#chart");
+  const tooltip = d3.select("#tooltip");
+
+  const width = 1250;
+  const height = 720;
+  const margin = { top: 35, right: 40, bottom: 65, left: 90 };
+  const innerWidth = width - margin.left - margin.right;
+  const innerHeight = height - margin.top - margin.bottom;
+  const centerY = innerHeight / 2;
+
+  const chartG = svg.append("g")
+    .attr("transform", `translate(${margin.left},${margin.top})`);
+
+  const tabsContainer = d3.select("#tabs");
+  const legendContainer = d3.select("#legend");
+
+  let rawData = [];
+  let currentCause = "Storm / Weather";
+
+  const lakeOrder = ["Superior", "Michigan", "Huron", "Erie", "Ontario"];
+
+  const lakeColor = d3.scaleOrdinal()
+    .domain(lakeOrder)
+    .range([
+      "#4e79a7", // Superior
+      "#59a14f", // Michigan
+      "#f28e2b", // Huron
+      "#e15759", // Erie
+      "#76b7b2"  // Ontario
+    ]);
+
+  const causeOrder = [
+    "Storm / Weather",
+    "Fire / Explosion",
+    "Collision",
+    "Grounding / Stranding",
+    "Ice",
+    "Mechanical Failure",
+    "Navigation Error"
+  ];
+
+  function normalizeLake(lake) {
+    if (!lake) return null;
+    const v = String(lake).trim().toLowerCase();
+    if (v.includes("superior")) return "Superior";
+    if (v.includes("mich")) return "Michigan";
+    if (v.includes("huron")) return "Huron";
+    if (v.includes("erie")) return "Erie";
+    if (v.includes("ontario")) return "Ontario";
+    return null;
+  }
+
+  function extractYear(dateStr) {
+    if (!dateStr) return null;
+    const match = String(dateStr).match(/\b(17|18|19|20)\d{2}\b/);
+    return match ? +match[0] : null;
+  }
+
+  function toDecade(year) {
+    return Math.floor(year / 10) * 10;
+  }
+
+  // puts the causes in the correct bins based on the keywords
+  function normalizeCause(cause) {
+    if (!cause || String(cause).trim() === "") return "Other / Unknown";
+
+    const c = String(cause).toLowerCase().trim();
+
+    if (c.includes("storm") || c.includes("gale") || c.includes("weather") || c.includes("fog")) {
+      return "Storm / Weather";
+    }
+
+    if (c.includes("fire") || c.includes("explosion") || c.includes("boiler")) {
+      return "Fire / Explosion";
+    }
+
+    if (c.includes("collision") || c.includes("collided") || c.includes("rammed")) {
+      return "Collision";
+    }
+
+    if (
+      c.includes("stranded") ||
+      c.includes("grounded") ||
+      c.includes("grounding") ||
+      c.includes("shoal") ||
+      c.includes("reef") ||
+      c.includes("wrecked")
+    ) {
+      return "Grounding / Stranding";
+    }
+
+    if (c.includes("ice")) {
+      return "Ice";
+    }
+
+    if (
+      c.includes("hull failure") ||
+      c.includes("mechanical failure") ||
+      c.includes("structural") ||
+      c.includes("leak") ||
+      c.includes("engine")
+    ) {
+      return "Mechanical Failure";
+    }
+
+    if (
+      c.includes("navigational error") ||
+      c.includes("navigation error") ||
+      c.includes("towing accident")
+    ) {
+      return "Navigation Error";
+    }
+
+    if (c === "?" || c.includes("unknown") || c.includes("unreported")) {
+      return "Other / Unknown";
+    }
+
+    if (
+      c.includes("foundered") ||
+      c.includes("sank") ||
+      c.includes("sunk") ||
+      c.includes("went missing") ||
+      c.includes("lost")
+    ) {
+      return "Sank / Foundered / Missing";
+    }
+
+    return "Other / Unknown";
+  }
+
+  function parseLossOfLife(value) {
+    if (value === null || value === undefined) return 0;
+    const raw = String(value).trim().toLowerCase();
+    if (raw === "" || raw === "none" || raw === "?" || raw === "nan") return 0;
+
+    const nums = raw.match(/\d+/g);
+    if (!nums) return 0;
+
+    // Keeps the higher number of fatalities in the situation it is like 5 or 6
+    return d3.max(nums.map(Number));
+  }
+
+  function preprocess(data) {
+    return data
+      .map(d => {
+        const year = extractYear(d.date_of_loss);
+        const lake = normalizeLake(d.lake);
+        const cause = normalizeCause(d.type_of_loss);
+        const deaths = parseLossOfLife(d.loss_of_life);
+
+        // Getting rid of these causes again for consistency with the other chart
+        if (
+          cause === "Sank / Foundered / Missing" ||
+          cause === "Other / Unknown"
+        ) {
+          return null;
+        }
+
+        return {
+          year,
+          decade: year !== null ? toDecade(year) : null,
+          lake,
+          cause,
+          deaths
+        };
+      })
+      .filter(d => d && d.year !== null && d.decade !== null && d.lake !== null);
+  }
+
+  function buildTabs() {
+    tabsContainer.selectAll("button")
+      .data(causeOrder)
+      .join("button")
+      .attr("class", d => d === currentCause ? "tab-btn active" : "tab-btn")
+      .text(d => d)
+      .on("click", (event, d) => {
+        currentCause = d;
+        buildTabs();
+        renderChart();
+      });
+  }
+
+  function buildLegend() {
+    legendContainer.selectAll(".legend-item")
+      .data(lakeOrder)
+      .join("div")
+      .attr("class", "legend-item")
+      .html(d => `
+        <span class="legend-swatch" style="background:${lakeColor(d)};"></span>
+        <span>${d}</span>
+      `);
+  }
+
+  function buildDecadeSeries(filteredData) {
+    const decades = filteredData.map(d => d.decade);
+    const minDecade = d3.min(decades);
+    const maxDecade = d3.max(decades);
+    const allDecades = d3.range(minDecade, maxDecade + 1, 10);
+
+    const countGrouped = d3.rollup(
+      filteredData,
+      v => v.length,
+      d => d.decade,
+      d => d.lake
+    );
+
+    const deathGrouped = d3.rollup(
+      filteredData,
+      v => d3.sum(v, d => d.deaths),
+      d => d.decade,
+      d => d.lake
+    );
+
+    const rows = allDecades.map(decade => {
+      const countRow = { decade };
+      const deathRow = { decade };
+
+      lakeOrder.forEach(lake => {
+        countRow[lake] = countGrouped.get(decade)?.get(lake) || 0;
+        deathRow[lake] = deathGrouped.get(decade)?.get(lake) || 0;
+      });
+
+      return { countRow, deathRow };
+    });
+
+    return {
+      countSeries: rows.map(d => d.countRow),
+      deathSeries: rows.map(d => d.deathRow),
+      minDecade,
+      maxDecade
+    };
+  }
+
+  function renderChart() {
+    chartG.selectAll("*").remove();
+
+    const filtered = rawData.filter(d => d.cause === currentCause);
+    const { countSeries, deathSeries, minDecade, maxDecade } = buildDecadeSeries(filtered);
+
+    if (!countSeries.length) {
+      chartG.append("text")
+        .attr("x", innerWidth / 2)
+        .attr("y", centerY)
+        .attr("text-anchor", "middle")
+        .attr("font-size", 18)
+        .text("No usable data for this cause.");
+      return;
+    }
+
+    const countStack = d3.stack()
+      .keys(lakeOrder)
+      .order(d3.stackOrderAscending);
+
+    const deathStack = d3.stack()
+      .keys(lakeOrder)
+      .order(d3.stackOrderAscending);
+
+    const countLayers = countStack(countSeries);
+    const deathLayers = deathStack(deathSeries);
+
+    const x = d3.scaleLinear()
+      .domain([minDecade, maxDecade])
+      .range([0, innerWidth]);
+
+    const maxCount = d3.max(countSeries, d => d3.sum(lakeOrder, key => d[key])) || 1;
+    const maxDeaths = d3.max(deathSeries, d => d3.sum(lakeOrder, key => d[key])) || 1;
+
+    const topY = d3.scaleLinear()
+      .domain([0, maxCount])
+      .nice()
+      .range([centerY, 0]);
+
+    const bottomY = d3.scaleLinear()
+      .domain([0, maxDeaths])
+      .nice()
+      .range([centerY, innerHeight]);
+
+    const xAxis = d3.axisBottom(x)
+      .tickFormat(d => `${d}s`)
+      .ticks(Math.min(14, Math.max(2, (maxDecade - minDecade) / 10)));
+
+    const topYAxis = d3.axisLeft(topY).ticks(5);
+    const bottomYAxis = d3.axisLeft(bottomY).ticks(5);
+
+    const topGrid = d3.axisLeft(topY)
+      .tickSize(-innerWidth)
+      .tickFormat("")
+      .ticks(5);
+
+    const bottomGrid = d3.axisLeft(bottomY)
+      .tickSize(-innerWidth)
+      .tickFormat("")
+      .ticks(5);
+
+    chartG.append("g")
+      .attr("class", "grid")
+      .call(topGrid);
+
+    chartG.append("g")
+      .attr("class", "grid")
+      .call(bottomGrid);
+
+    const topArea = d3.area()
+      .x(d => x(d.data.decade))
+      .y0(d => topY(d[0]))
+      .y1(d => topY(d[1]))
+      .curve(d3.curveCatmullRom.alpha(0.5));
+
+    const bottomArea = d3.area()
+      .x(d => x(d.data.decade))
+      .y0(d => bottomY(d[0]))
+      .y1(d => bottomY(d[1]))
+      .curve(d3.curveCatmullRom.alpha(0.5));
+
+    chartG.selectAll(".top-layer")
+      .data(countLayers)
+      .join("path")
+      .attr("class", "layer top-layer")
+      .attr("fill", d => lakeColor(d.key))
+      .attr("d", topArea)
+      .on("mousemove", function(event, layer) {
+        showTooltip(event, layer, countSeries, deathSeries, x, "Shipwrecks");
+      })
+      .on("mouseleave", () => tooltip.style("opacity", 0));
+
+    chartG.selectAll(".bottom-layer")
+      .data(deathLayers)
+      .join("path")
+      .attr("class", "layer bottom-layer")
+      .attr("fill", d => lakeColor(d.key))
+      .attr("d", bottomArea)
+      .on("mousemove", function(event, layer) {
+        showTooltip(event, layer, countSeries, deathSeries, x, "Fatalities");
+      })
+      .on("mouseleave", () => tooltip.style("opacity", 0));
+
+    chartG.append("line")
+      .attr("class", "baseline")
+      .attr("x1", 0)
+      .attr("x2", innerWidth)
+      .attr("y1", centerY)
+      .attr("y2", centerY);
+
+    chartG.append("g")
+      .attr("class", "axis")
+      .attr("transform", `translate(0, ${innerHeight})`)
+      .call(xAxis);
+
+    chartG.append("g")
+      .attr("class", "axis")
+      .call(topYAxis);
+
+    chartG.append("g")
+      .attr("class", "axis")
+      .call(bottomYAxis);
+
+    chartG.append("text")
+      .attr("class", "axis-title")
+      .attr("x", innerWidth / 2)
+      .attr("y", innerHeight + 46)
+      .attr("text-anchor", "middle")
+      .text("Decade");
+
+    chartG.append("text")
+      .attr("class", "axis-title")
+      .attr("transform", "rotate(-90)")
+      .attr("x", -centerY / 2)
+      .attr("y", -62)
+      .attr("text-anchor", "middle")
+      .text("Number of Shipwrecks");
+
+    chartG.append("text")
+      .attr("class", "axis-title")
+      .attr("transform", "rotate(-90)")
+      .attr("x", -(centerY + (innerHeight - centerY) / 2))
+      .attr("y", -62)
+      .attr("text-anchor", "middle")
+      .text("Fatalities");
+
+    chartG.append("text")
+      .attr("class", "section-label")
+      .attr("x", 0)
+      .attr("y", -10)
+      .text(`Accidents`);
+
+    chartG.append("text")
+      .attr("class", "section-label")
+      .attr("x", 0)
+      .attr("y", centerY + 24)
+      .text(`Deaths`);
+
+    chartG.append("text")
+      .attr("class", "muted-label")
+      .attr("x", innerWidth)
+      .attr("y", centerY - 8)
+      .attr("text-anchor", "end");
+  }
+
+  function showTooltip(event, layer, countSeries, deathSeries, x, section) {
+    const [mx] = d3.pointer(event, chartG.node());
+    const hoveredDecade = Math.round(x.invert(mx) / 10) * 10;
+
+    const countRow = countSeries.find(d => d.decade === hoveredDecade);
+    const deathRow = deathSeries.find(d => d.decade === hoveredDecade);
+    if (!countRow || !deathRow) return;
+
+    const lake = layer.key;
+    const countValue = countRow[lake] || 0;
+    const deathValue = deathRow[lake] || 0;
+    const totalCount = d3.sum(lakeOrder, key => countRow[key]);
+    const totalDeaths = d3.sum(lakeOrder, key => deathRow[key]);
+
+    tooltip
+      .style("opacity", 1)
+      .html(`
+        <strong>${currentCause}</strong><br>
+        <strong>Lake:</strong> ${lake}<br>
+        <strong>Decade:</strong> ${hoveredDecade}s<br>
+        <strong>Shipwrecks:</strong> ${countValue}<br>
+        <strong>Fatalities:</strong> ${deathValue}<br>
+        <strong>Total wrecks for cause:</strong> ${totalCount}<br>
+        <strong>Total deaths for cause:</strong> ${totalDeaths}<br>
+        <em>Hovered section: ${section}</em>
+      `)
+      .style("left", (event.pageX + 14) + "px")
+      .style("top", (event.pageY - 18) + "px");
+  }
+
+  d3.csv(fileName).then(data => {
+    rawData = preprocess(data);
+    buildTabs();
+    buildLegend();
+    renderChart();
+  }).catch(error => {
+    console.error("Error loading CSV:", error);
+    alert("Could not load the CSV file. Make sure this HTML file and the CSV file are in the same folder, and check the fileName variable near the top of the script.");
+  });
+</script>
+</body>
+</html>
