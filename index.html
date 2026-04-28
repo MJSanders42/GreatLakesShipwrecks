@@ -1,499 +1,450 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Shipwrecks Acrosss The Great Lakes</title>
-  <script src="https://d3js.org/d3.v7.min.js"></script>
-  <style>
-    body {
-      margin: 0;
-      font-family: Arial, Helvetica, sans-serif;
-      background: #f4f4f4;
-      color: #222;
-    }
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Great Lakes Shipwrecks — Interactive Map</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Arial,Helvetica,sans-serif;background:#f4f4f4;color:#222}
 
-    .container {
-      max-width: 1300px;
-      margin: 0 auto;
-      padding: 20px 24px 40px 24px;
-    }
+  #header{padding:14px 22px 10px;background:#fff;border-bottom:1px solid #e0e0e0}
+  #header h1{font-size:22px;font-weight:700;margin-bottom:2px}
+  #header p{font-size:13px;color:#666}
 
-    h1 {
-      margin: 0 0 6px 0;
-      font-size: 28px;
-    }
+  #map{width:100%;height:540px}
 
-    .subtitle {
-      margin-bottom: 18px;
-      color: #555;
-      font-size: 15px;
-    }
+  /* ── Controls panel ── */
+  #controls{background:#fff;border-top:1px solid #e0e0e0;padding:16px 22px 18px}
 
-    .tabs {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-bottom: 18px;
-    }
+  /* Year display row */
+  #year-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+  #year-display{font-size:28px;font-weight:700;color:#2f5aa8;letter-spacing:.02em;min-width:64px}
+  #wreck-count{font-size:13px;color:#666}
 
-    .tab-btn {
-      border: 1px solid #bbb;
-      background: white;
-      padding: 8px 14px;
-      border-radius: 8px;
-      cursor: pointer;
-      font-size: 14px;
-      transition: 0.2s ease;
-    }
+  /* Slider */
+  #slider-wrap{position:relative;margin-bottom:14px}
+  #year-slider{width:100%;height:6px;-webkit-appearance:none;appearance:none;
+    background:linear-gradient(to right,#2f5aa8 0%,#2f5aa8 var(--pct,0%),#ddd var(--pct,0%),#ddd 100%);
+    border-radius:3px;outline:none;cursor:pointer}
+  #year-slider::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;
+    border-radius:50%;background:#2f5aa8;border:2px solid #fff;
+    box-shadow:0 1px 4px rgba(0,0,0,.25);cursor:pointer}
+  #year-slider::-moz-range-thumb{width:20px;height:20px;border-radius:50%;
+    background:#2f5aa8;border:2px solid #fff;cursor:pointer}
+  #tick-row{display:flex;justify-content:space-between;margin-top:4px}
+  #tick-row span{font-size:11px;color:#999}
 
-    .tab-btn:hover {
-      background: #e9f2ff;
-      border-color: #7aa7e8;
-    }
+  /* Controls row */
+  #ctrl-row{display:flex;align-items:center;flex-wrap:wrap;gap:12px 20px}
 
-    .tab-btn.active {
-      background: #2f5aa8;
-      color: white;
-      border-color: #2f5aa8;
-      font-weight: 600;
-    }
+  /* Play/Pause button */
+  #play-btn{padding:7px 18px;background:#2f5aa8;color:#fff;border:none;border-radius:7px;
+    font-size:13px;font-weight:600;cursor:pointer;transition:.15s ease;min-width:76px}
+  #play-btn:hover{background:#244a8e}
 
-    .chart-wrapper {
-      background: white;
-      border-radius: 12px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-      padding: 18px;
-    }
+  /* Decade toggle */
+  .toggle-label{display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;user-select:none}
+  .toggle-track{position:relative;width:36px;height:20px;border-radius:10px;
+    background:#ccc;transition:background .2s;flex-shrink:0}
+  .toggle-track input{opacity:0;width:0;height:0;position:absolute}
+  .toggle-thumb{position:absolute;top:2px;left:2px;width:16px;height:16px;
+    background:#fff;border-radius:50%;transition:transform .2s;
+    box-shadow:0 1px 3px rgba(0,0,0,.25)}
+  input:checked ~ .toggle-thumb{transform:translateX(16px)}
+  .toggle-track:has(input:checked){background:#2f5aa8}
 
-    svg {
-      display: block;
-      width: 100%;
-      height: auto;
-    }
+  /* Speed selector */
+  .ctrl-group{display:flex;align-items:center;gap:6px;font-size:13px;color:#555}
+  .ctrl-group select{padding:4px 8px;border:1px solid #ccc;border-radius:5px;font-size:13px;background:#fff}
 
-    .axis path,
-    .axis line {
-      stroke: #aaa;
-    }
+  /* Legend */
+  #legend{display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:14px;
+    padding-top:12px;border-top:1px solid #eee}
+  .leg-item{display:flex;align-items:center;gap:6px;font-size:12px;color:#555}
+  .leg-dot{width:11px;height:11px;border-radius:50%;flex-shrink:0;border:1.5px solid rgba(0,0,0,.2)}
+  #legend-size{display:flex;align-items:center;gap:8px;font-size:12px;color:#555;margin-top:6px}
+  .sz-dot{border-radius:50%;background:#888;border:1px solid rgba(0,0,0,.2);display:inline-block;flex-shrink:0}
 
-    .axis text {
-      fill: #444;
-      font-size: 12px;
-    }
+  /* Tooltip */
+  #tip{position:fixed;z-index:9999;pointer-events:none;opacity:0;transition:opacity .1s;
+    background:rgba(15,15,25,.93);color:#eee;padding:9px 13px;border-radius:7px;
+    font-size:12px;line-height:1.65;max-width:230px;box-shadow:0 4px 18px rgba(0,0,0,.4)}
+  #tip b{display:block;font-size:13px;color:#fff;margin-bottom:2px}
+  #tip .cause-badge{display:inline-block;padding:1px 8px;border-radius:10px;
+    font-size:10px;font-weight:700;letter-spacing:.04em;margin-bottom:4px}
+  #tip .tr{color:#aaa}
+  #tip .tr span{color:#ddd}
 
-    .grid line {
-      stroke: #ddd;
-      stroke-opacity: 0.8;
-      shape-rendering: crispEdges;
-    }
-
-    .grid path {
-      stroke: none;
-    }
-
-    .layer {
-      opacity: 0.92;
-      transition: opacity 0.15s ease;
-    }
-
-    .layer:hover {
-      opacity: 1;
-    }
-
-    .legend {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 12px 18px;
-      margin-top: 16px;
-      font-size: 13px;
-    }
-
-    .legend-item {
-      display: flex;
-      align-items: center;
-      gap: 7px;
-    }
-
-    .legend-swatch {
-      width: 14px;
-      height: 14px;
-      border-radius: 3px;
-      flex: 0 0 14px;
-    }
-
-    .tooltip {
-      position: absolute;
-      pointer-events: none;
-      background: rgba(25, 25, 25, 0.95);
-      color: white;
-      padding: 10px 12px;
-      border-radius: 8px;
-      font-size: 13px;
-      line-height: 1.4;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.25);
-      opacity: 0;
-      transition: opacity 0.15s ease;
-    }
-
-    .annotation {
-      margin-top: 10px;
-      color: #666;
-      font-size: 13px;
-    }
-
-    .axis-title {
-      fill: #333;
-      font-size: 13px;
-      font-weight: 600;
-    }
-  </style>
+  .leaflet-container{background:#a8d4e8}
+</style>
 </head>
 <body>
-  <div class="container">
-    <h1>Causes of Shipwrecks Across the Great Lakes</h1>
-   
-    <div class="tabs" id="tabs"></div>
 
-    <div class="chart-wrapper">
-      <svg id="chart" viewBox="0 0 1200 650"></svg>
-      <div class="legend" id="legend"></div>
+<div id="header">
+  <h1>Great Lakes Shipwrecks</h1>
+  <p>3,201 wrecks plotted &nbsp;&middot;&nbsp; color = cause &nbsp;&middot;&nbsp; size = casualties &nbsp;&middot;&nbsp; use the slider to travel through time</p>
+</div>
+
+<div id="map"></div>
+
+<div id="controls">
+  <div id="year-row">
+    <div id="year-display">1760</div>
+    <div id="wreck-count">0 wrecks shown</div>
+  </div>
+
+  <div id="slider-wrap">
+    <input type="range" id="year-slider" min="1760" max="2000" value="1760" step="1"/>
+    <div id="tick-row">
+      <span>1760</span><span>1800</span><span>1840</span><span>1880</span>
+      <span>1920</span><span>1960</span><span>2000</span>
     </div>
   </div>
 
-  <div class="tooltip" id="tooltip"></div>
+  <div id="ctrl-row">
+    <button id="play-btn">&#9654; Play</button>
+
+    <label class="toggle-label">
+      <div class="toggle-track">
+        <input type="checkbox" id="decade-toggle"/>
+        <span class="toggle-thumb"></span>
+      </div>
+      Show current decade only
+    </label>
+
+    <div class="ctrl-group">
+      <label for="speed-select">Speed</label>
+      <select id="speed-select">
+        <option value="120">Slow</option>
+        <option value="60" selected>Normal</option>
+        <option value="25">Fast</option>
+        <option value="8">Very fast</option>
+      </select>
+    </div>
+  </div>
+
+  <div id="legend">
+    <div class="leg-item"><span class="leg-dot" style="background:#4a90e8"></span>Storm / Weather</div>
+    <div class="leg-item"><span class="leg-dot" style="background:#e05a3a"></span>Fire / Explosion</div>
+    <div class="leg-item"><span class="leg-dot" style="background:#f0b040"></span>Collision</div>
+    <div class="leg-item"><span class="leg-dot" style="background:#b07040"></span>Grounding</div>
+    <div class="leg-item"><span class="leg-dot" style="background:#3db86a"></span>Ice</div>
+    <div class="leg-item"><span class="leg-dot" style="background:#9d7cd6"></span>Mechanical</div>
+    <div class="leg-item"><span class="leg-dot" style="background:#d966c8"></span>Navigation Error</div>
+    <div class="leg-item"><span class="leg-dot" style="background:#888"></span>Other</div>
+  </div>
+  <div id="legend-size">
+    <span style="font-size:12px;color:#555;margin-right:4px">Casualties:</span>
+    <span class="sz-dot" style="width:7px;height:7px"></span><span>0</span>
+    <span class="sz-dot" style="width:11px;height:11px"></span><span>1–5</span>
+    <span class="sz-dot" style="width:16px;height:16px"></span><span>6–20</span>
+    <span class="sz-dot" style="width:22px;height:22px"></span><span>20+</span>
+  </div>
+</div>
+
+<div id="tip"></div>
 
 <script>
-  const fileName = "GreatLakesShipwrecks.csv";
+const DATA_FILE = 'ShipwreckDataFixed.csv';
+let WRECKS = [];
+let yearIndex = new Map();
 
-  const svg = d3.select("#chart");
-  const tooltip = d3.select("#tooltip");
+const COLORS = {
+  'Storm':           '#4a90e8',
+  'Fire':            '#e05a3a',
+  'Collision':       '#f0b040',
+  'Grounding':       '#b07040',
+  'Ice':             '#3db86a',
+  'Mechanical':      '#9d7cd6',
+  'Navigation Error':'#d966c8',
+  'Other':           '#888888',
+};
 
-  const width = 1200;
-  const height = 650;
+function dotRadius(k) {
+  if (k === 0)  return 4;
+  if (k <= 3)   return 6;
+  if (k <= 10)  return 9;
+  if (k <= 25)  return 13;
+  if (k <= 75)  return 18;
+  return 24;
+}
 
-  const margin = { top: 20, right: 30, bottom: 55, left: 75 };
-  const innerWidth = width - margin.left - margin.right;
-  const innerHeight = height - margin.top - margin.bottom;
+function parseCSV(text) {
+  const rows = [];
+  let row = [];
+  let field = '';
+  let inQuotes = false;
 
-  const chartG = svg.append("g")
-    .attr("transform", `translate(${margin.left},${margin.top})`);
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    const next = text[i + 1];
 
-  const tabsContainer = d3.select("#tabs");
-  const legendContainer = d3.select("#legend");
-
-  const lakeOptions = ["All", "Superior", "Michigan", "Huron", "Erie", "Ontario"];
-  let currentLake = "All";
-  let rawData = [];
-
-  const causeOrder = [
-    "Storm / Weather",
-    "Fire / Explosion",
-    "Collision",
-    "Grounding / Stranding",
-    "Ice",
-    "Mechanical Failure",
-    "Navigation Error",
-  ];
-
-    // Colors foe the area 
-  const colorScale = d3.scaleOrdinal()
-    .domain(causeOrder)
-    .range([
-      "#6f8fe8", // Storm / Weather
-      "#e45b43", // fire / explosion
-      "#f0b44d", // collision
-      "#aa8456", // Run Arground
-      "#4CAF50", // Ice
-      "#9d7cd6", // Mechanical Failure
-      "#df69cc", // Navigation Error
-    ]);
-
-  function normalizeLake(lake) {
-    if (!lake) return null;
-    const v = String(lake).trim().toLowerCase();
-
-    if (v.includes("superior")) return "Superior";
-    if (v.includes("mich")) return "Michigan";
-    if (v.includes("huron")) return "Huron";
-    if (v.includes("erie")) return "Erie";
-    if (v.includes("ontario")) return "Ontario";
-
-    return null;
+    if (ch === '"' && inQuotes && next === '"') {
+      field += '"';
+      i++;
+    } else if (ch === '"') {
+      inQuotes = !inQuotes;
+    } else if (ch === ',' && !inQuotes) {
+      row.push(field);
+      field = '';
+    } else if ((ch === '\n' || ch === '\r') && !inQuotes) {
+      if (ch === '\r' && next === '\n') i++;
+      row.push(field);
+      field = '';
+      if (row.some(v => v.trim() !== '')) rows.push(row);
+      row = [];
+    } else {
+      field += ch;
+    }
   }
 
-  function extractYear(dateStr) {
-    if (!dateStr) return null;
-    const match = String(dateStr).match(/\b(17|18|19|20)\d{2}\b/);
-    return match ? +match[0] : null;
+  if (field.length || row.length) {
+    row.push(field);
+    if (row.some(v => v.trim() !== '')) rows.push(row);
   }
 
-  function toDecade(year) {
-    return Math.floor(year / 10) * 10; // Converts the year to decade
+  const headers = rows.shift().map(h => h.trim());
+  return rows.map(r => Object.fromEntries(headers.map((h, i) => [h, r[i] ?? ''])));
+}
+
+function extractYear(dateText) {
+  const match = String(dateText || '').match(/\d{4}/);
+  return match ? +match[0] : NaN;
+}
+
+function parseDeaths(value) {
+  const text = String(value || '').trim().toLowerCase();
+  if (!text || text === 'none' || text === 'nan' || text === '?' || text.includes('none')) return 0;
+
+  const nums = text.match(/\d+/g);
+  if (!nums) return 0;
+
+  // For values like "6 or 7", use the higher number.
+  return Math.max(...nums.map(Number));
+}
+
+function normalizeCause(value) {
+  const text = String(value || '').toLowerCase().replace(/[()]/g, '').trim();
+
+  if (text.includes('storm') || text.includes('weather') || text.includes('founder')) return 'Storm';
+  if (text.includes('fire') || text.includes('explosion') || text.includes('burn')) return 'Fire';
+  if (text.includes('collision') || text.includes('collided')) return 'Collision';
+  if (text.includes('ground') || text.includes('ashore') || text.includes('stranded')) return 'Grounding';
+  if (text.includes('ice')) return 'Ice';
+  if (text.includes('mechanical') || text.includes('engine') || text.includes('boiler')) return 'Mechanical';
+  if (text.includes('navigation') || text.includes('navigational')) return 'Navigation Error';
+
+  return 'Other';
+}
+
+function convertRow(d) {
+  const lat = +d.latitude;
+  const lng = +d.longitude;
+  const year = extractYear(d.date_of_loss);
+
+  return {
+    n: d.name || 'Unnamed vessel',
+    y: year,
+    lat: lat,
+    lng: lng,
+    c: normalizeCause(d.type_of_loss),
+    k: parseDeaths(d.loss_of_life),
+    p: d.place_of_loss || '',
+    l: d.lake || '',
+  };
+}
+
+function rebuildYearIndex() {
+  WRECKS.sort((a, b) => a.y - b.y);
+
+  yearIndex = new Map();
+  for (let i = 0; i < WRECKS.length; i++) {
+    if (!yearIndex.has(WRECKS[i].y)) yearIndex.set(WRECKS[i].y, i);
   }
+}
 
-  // Puts all the causes in the right buckets 
-  function normalizeCause(cause) {
-    if (!cause || String(cause).trim() === "") return "Other / Unknown";
+function updateYearControls() {
+  const slider = document.getElementById('year-slider');
+  const years = WRECKS.map(d => d.y);
+  const minYear = Math.min(...years);
+  const maxYear = Math.max(...years);
 
-    const c = String(cause).toLowerCase().trim();
+  slider.min = minYear;
+  slider.max = maxYear;
+  slider.value = minYear;
 
-    if (c.includes("storm") || c.includes("gale") || c.includes("weather") || c.includes("fog")) {
-      return "Storm / Weather";
-    }
+  currentYear = minYear;
+  document.getElementById('year-display').textContent = minYear;
 
-    if (c.includes("fire") || c.includes("explosion") || c.includes("boiler")) {
-      return "Fire / Explosion";
-    }
+  const tickRow = document.getElementById('tick-row');
+  const step = (maxYear - minYear) / 6;
+  tickRow.innerHTML = Array.from({ length: 7 }, (_, i) => {
+    const tick = Math.round((minYear + step * i) / 10) * 10;
+    return `<span>${tick}</span>`;
+  }).join('');
+}
 
-    if (c.includes("collision") || c.includes("collided") || c.includes("rammed")) {
-      return "Collision";
-    }
+async function loadShipwreckData() {
+  try {
+    document.getElementById('wreck-count').textContent = 'Loading shipwreck data...';
 
-    if (
-      c.includes("stranded") ||
-      c.includes("grounded") ||
-      c.includes("grounding") ||
-      c.includes("shoal") ||
-      c.includes("reef") ||
-      c.includes("wrecked")
-    ) {
-      return "Grounding / Stranding";
-    }
+    const response = await fetch(DATA_FILE);
+    if (!response.ok) throw new Error(`Could not load ${DATA_FILE}`);
 
-    if (c.includes("ice")) {
-      return "Ice";
-    }
+    const csvText = await response.text();
+    const rawData = parseCSV(csvText);
 
-    if (
-      c.includes("hull failure") ||
-      c.includes("mechanical failure") ||
-      c.includes("structural") ||
-      c.includes("leak") ||
-      c.includes("engine")
-    ) {
-      return "Mechanical Failure";
-    }
+    WRECKS = rawData
+      .map(convertRow)
+      .filter(d => Number.isFinite(d.y) && Number.isFinite(d.lat) && Number.isFinite(d.lng));
 
-    if (
-      c.includes("navigational error") ||
-      c.includes("navigation error") ||
-      c.includes("towing accident")
-    ) {
-      return "Navigation Error";
-    }
+    rebuildYearIndex();
+    updateYearControls();
+    setYear(currentYear);
 
-    if (
-      c.includes("foundered") ||
-      c.includes("sank") ||
-      c.includes("sunk") ||
-      c.includes("went missing") ||
-      c.includes("lost")
-    ) {
-      return "Sank / Foundered / Missing";
-    }
-
-    if (c === "?" || c.includes("unknown") || c.includes("unreported")) {
-      return "Other / Unknown";
-    }
-
-    return "Other / Unknown";
+    document.querySelector('#header p').innerHTML =
+      `${WRECKS.length.toLocaleString()} wrecks plotted &nbsp;&middot;&nbsp; color = cause &nbsp;&middot;&nbsp; size = casualties &nbsp;&middot;&nbsp; use the slider to travel through time`;
+  } catch (err) {
+    console.error(err);
+    document.getElementById('wreck-count').textContent =
+      `Could not load ${DATA_FILE}. Use Live Server instead of opening the HTML file directly.`;
   }
+}
 
-  function preprocess(data) {
-    return data
-      .map(d => {
-        const year = extractYear(d.date_of_loss);
-        const lake = normalizeLake(d.lake);
-        const cause = normalizeCause(d.type_of_loss);
+/* ── MAP ── */
+const map = L.map('map', {center:[45.2,-83.5],zoom:6,minZoom:5,maxZoom:12});
+L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{
+  attribution:'&copy; CartoDB &copy; OSM contributors',
+  subdomains:'abcd',maxZoom:19
+}).addTo(map);
 
-        // Excludes missing and general sank since it doesn't really matter in determning what caused the shipwreck
-         if (
-         cause === "Sank / Foundered / Missing" ||
-         cause === "Other / Unknown"
-          ) {
-            return null;
-            }
-        return {
-          year,
-          decade: year !== null ? toDecade(year) : null,
-          lake,
-          cause
-        };
-      })
-      .filter(d => d &&d.year !== null && d.decade !== null && d.lake !== null);
+/* ── STATE ── */
+let currentYear   = 1760;
+let decadeOnly    = false;
+let playing       = false;
+let playInterval  = null;
+const tip         = document.getElementById('tip');
+
+/* ── CIRCLE LAYER ── */
+const layer = L.layerGroup().addTo(map);
+
+function getWrecksUpTo(year) {
+  /* Binary search for last index with w.y <= year */
+  let lo = 0, hi = WRECKS.length - 1, res = -1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (WRECKS[mid].y <= year) { res = mid; lo = mid + 1; }
+    else hi = mid - 1;
   }
+  return res; /* last index inclusive */
+}
 
-  function buildTabs() {
-    tabsContainer.selectAll("button")
-      .data(lakeOptions)
-      .join("button")
-      .attr("class", d => d === currentLake ? "tab-btn active" : "tab-btn")
-      .text(d => d)
-      .on("click", (event, d) => {
-        currentLake = d;
-        buildTabs();
-        renderChart();
-      });
-  }
+function render(year) {
+  layer.clearLayers();
+  const decade = Math.floor(year / 10) * 10;
+  const upTo   = getWrecksUpTo(year);
+  if (upTo < 0) return;
 
-  function buildLegend() {
-    legendContainer.selectAll(".legend-item")
-      .data(causeOrder)
-      .join("div")
-      .attr("class", "legend-item")
-      .html(d => `
-        <span class="legend-swatch" style="background:${colorScale(d)};"></span>
-        <span>${d}</span>
-      `);
-  }
+  let count = 0;
+  for (let i = 0; i <= upTo; i++) {
+    const w = WRECKS[i];
+    if (decadeOnly && Math.floor(w.y / 10) * 10 !== decade) continue;
 
-  // Fills up the decades with the number of shipwrecks for each cause
-  function buildDecadeSeries(filteredData) {
-    const decades = filteredData.map(d => d.decade);
-    const minDecade = d3.min(decades);
-    const maxDecade = d3.max(decades);
+    const color  = COLORS[w.c] || '#888';
+    const radius = dotRadius(w.k);
 
-    const allDecades = d3.range(minDecade, maxDecade + 1, 10);
-
-    const grouped = d3.rollup(
-      filteredData,
-      v => v.length,
-      d => d.decade,
-      d => d.cause
-    );
-
-    const series = allDecades.map(decade => {
-      const row = { decade };
-      causeOrder.forEach(cause => {
-        row[cause] = grouped.get(decade)?.get(cause) || 0;
-      });
-      return row;
+    const circle = L.circleMarker([w.lat, w.lng], {
+      radius,
+      fillColor: color,
+      color: 'rgba(0,0,0,0.22)',
+      weight: 0.8,
+      fillOpacity: 0.78,
     });
 
-    return { series, minDecade, maxDecade };
+    circle.on('mouseover', function(e) {
+      const fatStr = w.k > 0 ? w.k : 'None recorded';
+      tip.innerHTML = `<b>${w.n}</b>
+        <span class="cause-badge" style="background:${color}22;color:${color};border:1px solid ${color}55">${w.c}</span>
+        <div class="tr">Year: <span>${w.y}</span></div>
+        <div class="tr">Lake: <span>${w.l || '—'}</span></div>
+        <div class="tr">Casualties: <span>${fatStr}</span></div>
+        <div class="tr">Location: <span>${w.p || '—'}</span></div>`;
+      tip.style.opacity = '1';
+      moveTip(e.originalEvent);
+    });
+    circle.on('mousemove', e => moveTip(e.originalEvent));
+    circle.on('mouseout',  () => { tip.style.opacity = '0'; });
+
+    layer.addLayer(circle);
+    count++;
   }
 
-  function renderChart() {
-    chartG.selectAll("*").remove();
+  document.getElementById('wreck-count').textContent =
+    decadeOnly ? `${count} wrecks in ${decade}s` : `${count} wrecks shown`;
+}
 
-    let filtered = rawData;
-    if (currentLake !== "All") {
-      filtered = rawData.filter(d => d.lake === currentLake);
-    }
+function moveTip(e) {
+  const x = e.clientX, y = e.clientY;
+  tip.style.left = (x + window.innerWidth - x > 260 ? x + 14 : x - 244) + 'px';
+  tip.style.top  = (y - 8) + 'px';
+}
 
-    const { series, minDecade, maxDecade } = buildDecadeSeries(filtered);
+function setYear(year) {
+  currentYear = year;
+  document.getElementById('year-display').textContent = year;
+  const slider = document.getElementById('year-slider');
+  const pct = ((year - +slider.min) / (+slider.max - +slider.min) * 100).toFixed(2);
+  document.getElementById('year-slider').style.setProperty('--pct', pct + '%');
+  render(year);
+}
 
-    const stack = d3.stack()
-     .keys(causeOrder)
-     .order(d3.stackOrderAscending);
-    const stackedSeries = stack(series);
+/* ── SLIDER ── */
+const slider = document.getElementById('year-slider');
+slider.addEventListener('input', function() {
+  stopPlay();
+  setYear(+this.value);
+});
 
-    const x = d3.scaleLinear()
-      .domain([minDecade, maxDecade])
-      .range([0, innerWidth]);
+/* ── DECADE TOGGLE ── */
+document.getElementById('decade-toggle').addEventListener('change', function() {
+  decadeOnly = this.checked;
+  render(currentYear);
+});
 
-    const y = d3.scaleLinear()
-     .domain([
-         0,
-         d3.max(series, d => d3.sum(causeOrder, key => d[key]))
-        ])
-        .nice()
-        .range([innerHeight, 0]);
+/* ── PLAY/PAUSE ── */
+const playBtn = document.getElementById('play-btn');
 
-    const xAxis = d3.axisBottom(x)
-      .tickFormat(d => `${d}s`)
-      .ticks(Math.min(14, (maxDecade - minDecade) / 10));
+function startPlay() {
+  playing = true;
+  playBtn.textContent = '⏸ Pause';
+  if (currentYear >= +slider.max) setYear(+slider.min);
+  const ms = +document.getElementById('speed-select').value;
+  playInterval = setInterval(() => {
+    if (currentYear >= +slider.max) { stopPlay(); return; }
+    const next = currentYear + 1;
+    slider.value = next;
+    setYear(next);
+  }, ms);
+}
 
-    const yAxis = d3.axisLeft(y);
+function stopPlay() {
+  playing = false;
+  playBtn.textContent = '&#9654; Play';
+  clearInterval(playInterval);
+  playInterval = null;
+}
 
-    const yGrid = d3.axisLeft(y)
-      .tickSize(-innerWidth)
-      .tickFormat("");
+playBtn.addEventListener('click', () => playing ? stopPlay() : startPlay());
 
-    chartG.append("g")
-      .attr("class", "grid")
-      .call(yGrid);
+document.getElementById('speed-select').addEventListener('change', function() {
+  if (playing) { stopPlay(); startPlay(); }
+});
 
-    const area = d3.area()
-      .x(d => x(d.data.decade))
-      .y0(d => y(d[0]))
-      .y1(d => y(d[1]))
-      .curve(d3.curveCatmullRom.alpha(0.5));
-
-    chartG.selectAll(".layer")
-      .data(stackedSeries)
-      .join("path")
-      .attr("class", "layer")
-      .attr("fill", d => colorScale(d.key))
-      .attr("d", area)
-      .on("mousemove", function(event, layer) {
-        const [mx] = d3.pointer(event, this);
-        const hoveredDecade = Math.round(x.invert(mx) / 10) * 10;
-
-        const row = series.find(d => d.decade === hoveredDecade);
-        if (!row) return;
-
-        const value = row[layer.key] || 0;
-        const total = d3.sum(causeOrder, key => row[key]);
-
-        tooltip
-          .style("opacity", 1)
-          .html(`
-            <strong>${currentLake}</strong><br>
-            <strong>Decade:</strong> ${hoveredDecade}s<br>
-            <strong>Cause:</strong> ${layer.key}<br>
-            <strong>Shipwrecks:</strong> ${value}<br>
-            <strong>Total Wrecks in decade:</strong> ${total}
-          `)
-          .style("left", (event.pageX + 14)
-           + "px")
-          .style("top", (event.pageY - 18) + "px");
-      })
-      .on("mouseleave", function() {
-        tooltip.style("opacity", 0);
-      });
-
-    chartG.append("g")
-      .attr("class", "axis")
-      .attr("transform", `translate(0, ${innerHeight})`)
-      .call(xAxis);
-
-    chartG.append("g")
-      .attr("class", "axis")
-      .call(yAxis);
-
-    chartG.append("text")
-      .attr("class", "axis-title")
-      .attr("x", innerWidth / 2)
-      .attr("y", innerHeight + 42)
-      .attr("text-anchor", "middle")
-      .text("Decade");
-
-    chartG.append("text")
-      .attr("class", "axis-title")
-      .attr("transform", "rotate(-90)")
-      .attr("x", -innerHeight / 2)
-      .attr("y", -52)
-      .attr("text-anchor", "middle")
-      .text("Number of Shipwrecks");
-
-    chartG.append("text")
-      .attr("x", 0)
-      .attr("y", -2)
-      .attr("fill", "#333")
-      .attr("font-size", 16)
-      .attr("font-weight", 700)
-      .text(` Shipwreck Causes : ${currentLake}`);
-  }
-
-  d3.csv(fileName).then(data => {
-    rawData = preprocess(data);
-    buildTabs();
-    buildLegend();
-    renderChart();
-  }).catch(error => {
-    console.error("Error loading CSV:", error);
-    alert("Could not load the CSV file. Did you move it out of the same folder again?");
-  });
+/* ── INIT ── */
+loadShipwreckData();
 </script>
+</body>
+</html>
