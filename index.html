@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>Great Lakes Shipwrecks</title>
+<title>The Shipwrecks of the Great Lakes</title>
 
 <!-- Leaflet -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
@@ -272,15 +272,15 @@ input:checked ~ .toggle-thumb { transform: translateX(16px); }
 <body>
 
 <div id="page-header">
-  <h1>Great Lakes Shipwrecks</h1>
-  <p>An exploration of 3,200+ wrecks across five lakes — their causes, locations, and human cost over three centuries</p>
+  <h1>The Shipwrecks of the Great Lakes</h1>
+  <p>An exploration of 4,000+ wrecks across five lakes</p>
 </div>
 
 <!-- SECTION 1: MAP -->
 <div id="map-section">
   <div class="section-header">
     <h2>Where &amp; When They Sank</h2>
-    <p>Each dot is a recorded wreck — color shows cause, size reflects casualties. Use the slider to travel through time.</p>
+    <p>Each dot is a recorded wreck. color shows the cause & size reflects casualties. Use the slider to travel through time.</p>
   </div>
   <div id="map"></div>
   <div id="map-controls">
@@ -318,7 +318,7 @@ input:checked ~ .toggle-thumb { transform: translateX(16px); }
       <div class="map-leg-item"><span class="map-leg-dot" style="background:#4a90e8"></span>Storm / Weather</div>
       <div class="map-leg-item"><span class="map-leg-dot" style="background:#e05a3a"></span>Fire / Explosion</div>
       <div class="map-leg-item"><span class="map-leg-dot" style="background:#f0b040"></span>Collision</div>
-      <div class="map-leg-item"><span class="map-leg-dot" style="background:#b07040"></span>Grounding</div>
+      <div class="map-leg-item"><span class="map-leg-dot" style="background:#411d02"></span>Grounding</div>
       <div class="map-leg-item"><span class="map-leg-dot" style="background:#3db86a"></span>Ice</div>
       <div class="map-leg-item"><span class="map-leg-dot" style="background:#9d7cd6"></span>Mechanical</div>
       <div class="map-leg-item"><span class="map-leg-dot" style="background:#d966c8"></span>Navigation Error</div>
@@ -339,8 +339,8 @@ input:checked ~ .toggle-thumb { transform: translateX(16px); }
 <!-- SECTION 2: CAUSES CHART -->
 <div id="causes-section">
   <div class="section-header">
-    <h2>What Caused the Wrecks?</h2>
-    <p>The height of each band shows what share of that decade's shipwrecks were caused by each factor. Select a lake to filter.</p>
+    <h2>The Causes of the Wrecks</h2>
+    <p>The height of each band shows the percentage of wrecks that cause was responsible for.</p>
   </div>
   <div id="causes-inner">
     <div id="causes-tabs"></div>
@@ -348,10 +348,6 @@ input:checked ~ .toggle-thumb { transform: translateX(16px); }
       <svg id="causes-chart" viewBox="0 0 1100 520"></svg>
       <div id="causes-legend"></div>
     </div>
-    <p id="causes-note">
-      Only wrecks with identifiable causes are included. "Sank / Foundered / Missing" and "Unknown" are excluded
-      because they describe outcomes rather than causes. Percentages are of known-cause wrecks within each decade.
-    </p>
   </div>
 </div>
 
@@ -360,8 +356,8 @@ input:checked ~ .toggle-thumb { transform: translateX(16px); }
 <!-- SECTION 3: FATALITIES CHART -->
 <div id="fatalities-section">
   <div class="section-header">
-    <h2>Accidents &amp; Deaths Over Time</h2>
-    <p>Number of incidents (solid line) versus lives lost (dashed line) per decade. Select a cause to isolate it.</p>
+    <h2>Accidents &amp; Deaths</h2>
+    <p>Number of incidents versus lives lost per decade</p>
   </div>
   <div id="fatalities-inner">
     <div class="fat-tab-row" id="fat-tabs"></div>
@@ -396,7 +392,7 @@ input:checked ~ .toggle-thumb { transform: translateX(16px); }
 <!-- SCRIPT 1: MAP -->
 <script>
 (function() {
-  const DATA_FILE = 'ShipwreckDataFixed.csv';
+  const DATA_FILE = 'SW5.csv';
   let WRECKS = [];
   let yearIndex = new Map();
 
@@ -453,13 +449,14 @@ input:checked ~ .toggle-thumb { transform: translateX(16px); }
       k:parseDeaths(d.loss_of_life),p:d.place_of_loss||'',l:d.lake||''};
   }
   function rebuildYearIndex(){
+    WRECKS=WRECKS.filter(w=>w.y>=1760);
     WRECKS.sort((a,b)=>a.y-b.y);
     yearIndex=new Map();
     for(let i=0;i<WRECKS.length;i++)if(!yearIndex.has(WRECKS[i].y))yearIndex.set(WRECKS[i].y,i);
   }
   function updateYearControls(){
     const slider=document.getElementById('year-slider');
-    const years=WRECKS.map(d=>d.y),minY=Math.min(...years),maxY=Math.max(...years);
+    const years=WRECKS.map(d=>d.y),minY=Math.max(1760,Math.min(...years)),maxY=Math.max(...years);
     slider.min=minY;slider.max=maxY;slider.value=minY;
     currentYear=minY;
     document.getElementById('map-year-display').textContent=minY;
@@ -618,6 +615,7 @@ input:checked ~ .toggle-thumb { transform: translateX(16px); }
   const xScale=d3.scaleLinear().range([0,IW]);
   const yScale=d3.scaleLinear().domain([0,100]).range([IH,0]);
   const tooltip=d3.select('#causes-tip');
+  let scaffoldBuilt=false,currentSeries=[];
 
   function buildTabs(){
     d3.select('#causes-tabs').selectAll('button').data(LAKES).join('button')
@@ -630,12 +628,7 @@ input:checked ~ .toggle-thumb { transform: translateX(16px); }
       .attr('class','causes-leg-item')
       .html(d=>`<span class="causes-leg-swatch" style="background:${getColor(d)}"></span><span>${d}</span>`);
   }
-  function renderChart(){
-    chartG.selectAll('*').remove();
-    const filtered=currentLake==='All'?rawData:rawData.filter(d=>d.lake===currentLake);
-    const series=buildSeries(filtered);
-    const stacked=d3.stack().keys(CAUSES)(series);
-
+  function buildScaffold(){
     chartG.append('g').attr('class','causes-grid')
       .call(d3.axisLeft(yScale).tickSize(-IW).tickFormat('').ticks(5));
     chartG.append('g').attr('class','causes-axis').attr('transform',`translate(0,${IH})`)
@@ -646,15 +639,27 @@ input:checked ~ .toggle-thumb { transform: translateX(16px); }
       .attr('font-family',"'Source Serif 4',serif").attr('font-style','italic')
       .attr('transform','rotate(-90)').attr('x',-IH/2).attr('y',-50).attr('text-anchor','middle')
       .text('Share of known-cause shipwrecks (%)');
+    chartG.append('g').attr('class','causes-areas');
+    scaffoldBuilt=true;
+  }
+  function renderChart(){
+    if(!scaffoldBuilt)buildScaffold();
+    const filtered=currentLake==='All'?rawData:rawData.filter(d=>d.lake===currentLake);
+    const series=buildSeries(filtered);
+    currentSeries=series;
+    const stacked=d3.stack().keys(CAUSES)(series);
 
     const area=d3.area().x(d=>xScale(d.data.decade)).y0(d=>yScale(d[0])).y1(d=>yScale(d[1])).curve(d3.curveMonotoneX);
 
-    chartG.selectAll('.causes-layer').data(stacked).join('path')
-      .attr('class','causes-layer').attr('fill',d=>getColor(d.key)).attr('opacity',0.88).attr('d',area)
+    chartG.select('.causes-areas').selectAll('.causes-layer').data(stacked,d=>d.key).join(
+      enter=>enter.append('path').attr('class','causes-layer')
+        .attr('fill',d=>getColor(d.key)).attr('opacity',0.88).attr('d',area),
+      update=>update.call(sel=>sel.transition().duration(650).ease(d3.easeCubicInOut).attr('d',area))
+    )
       .on('mousemove',function(event,layer){
         const [mx]=d3.pointer(event,chartG.node());
         const hovDecade=Math.round(xScale.invert(mx)/10)*10;
-        const row=series.find(d=>d.decade===hovDecade);if(!row)return;
+        const row=currentSeries.find(d=>d.decade===hovDecade);if(!row)return;
         d3.select(this).attr('opacity',1);
         tooltip.style('opacity',1)
           .html(`<strong>${layer.key}</strong><br>${hovDecade}s &nbsp;·&nbsp; ${row[layer.key].toFixed(1)}%<br><span style="color:#aaa;font-size:11px">${row._total} known-cause wrecks that decade</span>`)
@@ -695,9 +700,30 @@ input:checked ~ .toggle-thumb { transform: translateX(16px); }
     'Ice':{label:'Ice',color:'#3db86a',desc:'Vessels trapped or crushed by lake ice'},
     'Mechanical':{label:'Mechanical',color:'#9d7cd6',desc:'Hull failures, engine failures, and structural loss'},
     'Navigation Error':{label:'Navigation Error',color:'#d966c8',desc:'Navigational errors and towing accidents'},
-    'Other':{label:'Other / Unknown',color:'#888888',desc:'Foundered, sank for unknown reasons, or unreported cause'},
   };
-  const CAUSES=Object.keys(CAUSE_META);
+  const CAUSES=Object.keys(CAUSE_META).filter(k=>k!=='Other');
+
+  // Compute global max accidents and deaths across all non-Other causes (for consistent scale)
+  const allDecadesArr = RAW.decades;
+  let globalMaxA = 0, globalMaxD = 0;
+  CAUSES.forEach(cause => {
+    const cData = DATA[cause];
+    allDecadesArr.forEach(d => {
+      if (cData[d]) {
+        globalMaxA = Math.max(globalMaxA, cData[d].a);
+        globalMaxD = Math.max(globalMaxD, cData[d].d);
+      }
+    });
+  });
+  // For "All" cause, also check
+  allDecadesArr.forEach(d => {
+    if (DATA['All'][d]) {
+      globalMaxA = Math.max(globalMaxA, DATA['All'][d].a);
+      globalMaxD = Math.max(globalMaxD, DATA['All'][d].d);
+    }
+  });
+
+  let useIndividualScale = false;
 
   const svg=d3.select('#fat-chart');
   const W=1100,H=400,margin={top:24,right:60,bottom:52,left:68};
@@ -715,6 +741,18 @@ input:checked ~ .toggle-thumb { transform: translateX(16px); }
   const tip=d3.select('#fat-tip');
   let current='All';
 
+  // Insert individual-scale checkbox above tabs
+  const tabsEl = document.getElementById('fat-tabs');
+  const cbWrap = document.createElement('div');
+  cbWrap.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:10px;font-size:13px;font-family:"Source Serif 4",serif;color:#555;';
+  cbWrap.innerHTML = `<input type="checkbox" id="fat-indiv-scale" style="width:15px;height:15px;cursor:pointer;accent-color:#2f5aa8">
+    <label for="fat-indiv-scale" style="cursor:pointer;">Scale each cause independently</label>`;
+  tabsEl.parentElement.insertBefore(cbWrap, tabsEl);
+  document.getElementById('fat-indiv-scale').addEventListener('change', function() {
+    useIndividualScale = this.checked;
+    renderChart(current);
+  });
+
   d3.select('#fat-tabs').selectAll('.fat-tab-btn').data(CAUSES).join('button')
     .attr('class',d=>`fat-tab-btn${d===current?' active':''}`)
     .html(d=>d==='All'?'<span style="font-size:15px">⬡</span> All':`<span class="fat-tab-swatch" style="background:${CAUSE_META[d].color}"></span>${CAUSE_META[d].label}`)
@@ -727,15 +765,23 @@ input:checked ~ .toggle-thumb { transform: translateX(16px); }
   function renderChart(cause){
     const meta=CAUSE_META[cause],cData=DATA[cause];
     const accColor=meta.color,dthColor='#c0392b';
-    const fi=DECADES.findIndex(d=>cData[d].a>0||cData[d].d>0);
+
+    // Always start from 1760, end at last decade with data
+    const START_DECADE = 1760;
     const li=DECADES.length-1-[...DECADES].reverse().findIndex(d=>cData[d].a>0||cData[d].d>0);
-    const vis=DECADES.slice(Math.max(0,fi-1),Math.min(DECADES.length-1,li+1)+1);
+    const startIdx = DECADES.indexOf(START_DECADE);
+    const vis=DECADES.slice(startIdx, Math.min(DECADES.length-1,li+1)+1);
+
     const accS=vis.map(d=>({d,v:cData[d].a})),dthS=vis.map(d=>({d,v:cData[d].d}));
     const maxA=d3.max(accS,d=>d.v)||1,maxD=d3.max(dthS,d=>d.v)||1;
 
-    const x=d3.scaleLinear().domain([d3.min(vis),d3.max(vis)]).range([0,iW]);
-    const yL=d3.scaleLinear().domain([0,maxA*1.12]).nice().range([iH,0]);
-    const yR=d3.scaleLinear().domain([0,maxD*1.12]).nice().range([iH,0]);
+    // Use global or per-cause scale based on checkbox
+    const scaleA = useIndividualScale ? maxA : globalMaxA;
+    const scaleD = useIndividualScale ? maxD : globalMaxD;
+
+    const x=d3.scaleLinear().domain([START_DECADE,d3.max(vis)]).range([0,iW]);
+    const yL=d3.scaleLinear().domain([0,scaleA*1.12]).nice().range([iH,0]);
+    const yR=d3.scaleLinear().domain([0,scaleD*1.12]).nice().range([iH,0]);
 
     gXAxis.transition().duration(400).call(d3.axisBottom(x).tickValues(vis.filter((_,i)=>i%2===0)).tickFormat(d=>`${d}s`));
     gYLeft.transition().duration(400).call(d3.axisLeft(yL).ticks(6));
@@ -764,7 +810,7 @@ input:checked ~ .toggle-thumb { transform: translateX(16px); }
     const onOver=(isAcc)=>function(event,d){
       const av=isAcc?d.v:cData[d.d].a,dv=isAcc?cData[d.d].d:d.v;
       tip.style('opacity',1)
-        .html(`<strong>${d.d}s</strong><span class="t-acc">● Accidents: ${av}</span><span class="t-dth">● Deaths: ${dv}</span>${av>0?`<span style="color:#aaa">Mortality: ${(dv/av*100).toFixed(1)}%</span>`:''}`)
+        .html(`<strong>${d.d}s</strong><span class="t-acc">● Accidents: ${av}</span><span class="t-dth">● Deaths: ${dv}</span>`)
         .style('left',(event.clientX+(event.clientX+215>window.innerWidth?-220:14))+'px')
         .style('top',(event.clientY-10)+'px');
     };
@@ -786,11 +832,9 @@ input:checked ~ .toggle-thumb { transform: translateX(16px); }
 
     const tA=d3.sum(accS,d=>d.v),tD=d3.sum(dthS,d=>d.v);
     const pA=accS.reduce((b,d)=>d.v>b.v?d:b,{v:0}),pD=dthS.reduce((b,d)=>d.v>b.v?d:b,{v:0});
-    const mort=tA>0?(tD/tA*100).toFixed(1):'—';
     d3.select('#fat-stat-row').html(`
       <div class="fat-stat-pill"><div class="sp-label">Total Accidents</div><div class="sp-value" style="color:${accColor}">${tA.toLocaleString()}</div><div class="sp-sub">across all decades</div></div>
       <div class="fat-stat-pill"><div class="sp-label">Total Deaths</div><div class="sp-value" style="color:#c0392b">${tD.toLocaleString()}</div><div class="sp-sub">recorded fatalities</div></div>
-      <div class="fat-stat-pill"><div class="sp-label">Mortality Rate</div><div class="sp-value" style="color:#666">${mort}%</div><div class="sp-sub">deaths per accident</div></div>
       <div class="fat-stat-pill"><div class="sp-label">Peak Accidents</div><div class="sp-value" style="color:${accColor}">${pA.v}</div><div class="sp-sub">${pA.v>0?pA.d+'s decade':'—'}</div></div>
       <div class="fat-stat-pill"><div class="sp-label">Deadliest Decade</div><div class="sp-value" style="color:#c0392b">${pD.v}</div><div class="sp-sub">${pD.v>0?pD.d+'s decade':'—'}</div></div>`);
   }
