@@ -1,636 +1,513 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Great Lakes Shipwrecks: Cause Streamgraph by Lake</title>
-  <script src="https://d3js.org/d3.v7.min.js"></script>
-  <style>
-    body {
-      margin: 0;
-      font-family: Arial, Helvetica, sans-serif;
-      background: #f4f4f4;
-      color: #222;
-    }
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Great Lakes Shipwrecks — Accident & Death Trends</title>
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<style>
+  /* ── Base ── */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, Helvetica, sans-serif; background: #f4f4f4; color: #222; }
 
-    .container {
-      max-width: 1350px;
-      margin: 0 auto;
-      padding: 20px 24px 40px 24px;
-    }
+  .container { max-width: 1200px; margin: 0 auto; padding: 22px 24px 48px; }
 
-    h1 {
-      margin: 0 0 6px 0;
-      font-size: 28px;
-    }
+  h1 { font-size: 26px; margin-bottom: 4px; }
+  .subtitle { font-size: 13px; color: #666; margin-bottom: 22px; }
 
-    .subtitle {
-      margin-bottom: 18px;
-      color: #555;
-      font-size: 15px;
-      line-height: 1.45;
-    }
+  /* ── Cause tabs ── */
+  .tab-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 20px;
+  }
 
-    .tabs {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-bottom: 18px;
-    }
+  .tab-btn {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 7px 14px;
+    border: 1.5px solid #ccc;
+    border-radius: 20px;
+    background: #fff;
+    font-size: 13px;
+    cursor: pointer;
+    transition: .15s ease;
+    font-family: inherit;
+  }
+  .tab-btn:hover { border-color: #7aa7e8; background: #f0f5ff; }
+  .tab-btn.active {
+    background: #2f5aa8;
+    border-color: #2f5aa8;
+    color: #fff;
+    font-weight: 600;
+  }
+  .tab-btn.active .tab-swatch { border-color: rgba(255,255,255,0.5); }
 
-    .tab-btn {
-      border: 1px solid #bbb;
-      background: white;
-      padding: 8px 14px;
-      border-radius: 8px;
-      cursor: pointer;
-      font-size: 14px;
-      transition: 0.2s ease;
-    }
+  .tab-swatch {
+    width: 11px; height: 11px;
+    border-radius: 50%;
+    border: 1.5px solid rgba(0,0,0,0.2);
+    flex-shrink: 0;
+  }
 
-    .tab-btn:hover {
-      background: #e9f2ff;
-      border-color: #7aa7e8;
-    }
+  /* ── Chart card ── */
+  .chart-card {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+    padding: 24px 24px 20px;
+  }
 
-    .tab-btn.active {
-      background: #2f5aa8;
-      color: white;
-      border-color: #2f5aa8;
-      font-weight: 600;
-    }
+  .chart-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
 
-    .chart-wrapper {
-      background: white;
-      border-radius: 12px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-      padding: 18px;
-    }
+  .chart-title { font-size: 18px; font-weight: 700; color: #222; }
+  .chart-desc  { font-size: 12px; color: #888; margin-top: 3px; }
 
-    svg {
-      display: block;
-      width: 100%;
-      height: auto;
-    }
+  /* ── Legend ── */
+  .legend {
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+    font-size: 12px;
+    align-items: center;
+  }
+  .leg-item { display: flex; align-items: center; gap: 6px; }
+  .leg-line {
+    width: 28px; height: 3px; border-radius: 2px;
+    position: relative; flex-shrink: 0;
+  }
+  .leg-line::after {
+    content: '';
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%,-50%);
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: inherit;
+    filter: brightness(1);
+  }
+  .leg-dashed {
+    background: none !important;
+    border-top: 2.5px dashed;
+    border-color: inherit;
+  }
 
-    .axis path,
-    .axis line {
-      stroke: #aaa;
-    }
+  /* ── SVG / axes ── */
+  svg { display: block; width: 100%; height: auto; overflow: visible; }
 
-    .axis text {
-      fill: #444;
-      font-size: 12px;
-    }
+  .axis path, .axis line { stroke: #ccc; }
+  .axis text { fill: #666; font-size: 11px; }
+  .axis-title { fill: #444; font-size: 12px; font-weight: 600; }
 
-    .grid line {
-      stroke: #ddd;
-      stroke-opacity: 0.75;
-      shape-rendering: crispEdges;
-    }
+  .grid line { stroke: #eee; shape-rendering: crispEdges; }
+  .grid path { stroke: none; }
 
-    .grid path {
-      stroke: none;
-    }
+  /* ── Lines ── */
+  .line-accidents { fill: none; stroke-width: 2.5; }
+  .line-deaths    { fill: none; stroke-width: 2.5; stroke-dasharray: 6 3; }
 
-    .baseline {
-      stroke: #111;
-      stroke-width: 10px;
-    }
+  .area-accidents { opacity: 0.10; }
+  .area-deaths    { opacity: 0.08; }
 
-    .layer {
-      opacity: 0.9;
-      transition: opacity 0.15s ease, stroke-width 0.15s ease;
-      stroke: white;
-      stroke-width: 0.7px;
-    }
+  .dot { cursor: pointer; }
+  .dot:hover { r: 7; }
 
-    .layer:hover {
-      opacity: 1;
-      stroke-width: 1.4px;
-    }
+  /* ── Tooltip ── */
+  #tooltip {
+    position: absolute;
+    pointer-events: none;
+    background: rgba(15,15,25,0.94);
+    color: #eee;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 12px;
+    line-height: 1.7;
+    box-shadow: 0 4px 18px rgba(0,0,0,0.3);
+    opacity: 0;
+    transition: opacity .1s;
+    max-width: 200px;
+  }
+  #tooltip strong { display: block; font-size: 13px; color: #fff; margin-bottom: 2px; }
+  #tooltip .t-acc { color: #7ab8ff; }
+  #tooltip .t-dth { color: #ff9090; }
 
-    .legend {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 12px 18px;
-      margin-top: 16px;
-      font-size: 13px;
-    }
+  /* ── Annotations ── */
+  .anno-line { stroke: #bbb; stroke-dasharray: 3 2; }
+  .anno-text { fill: #999; font-size: 10px; }
 
-    .legend-item {
-      display: flex;
-      align-items: center;
-      gap: 7px;
-      cursor: default;
-    }
-
-    .legend-swatch {
-      width: 14px;
-      height: 14px;
-      border-radius: 3px;
-      flex: 0 0 14px;
-    }
-
-    .tooltip {
-      position: absolute;
-      pointer-events: none;
-      background: rgba(25, 25, 25, 0.95);
-      color: white;
-      padding: 10px 12px;
-      border-radius: 8px;
-      font-size: 13px;
-      line-height: 1.4;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.25);
-      opacity: 0;
-      transition: opacity 0.15s ease;
-      max-width: 260px;
-    }
-
-    .annotation {
-      margin-top: 12px;
-      color: #666;
-      font-size: 13px;
-      line-height: 1.45;
-    }
-
-    .axis-title {
-      fill: #333;
-      font-size: 13px;
-      font-weight: 600;
-    }
-
-    .section-label {
-      fill: #333;
-      font-size: 15px;
-      font-weight: 700;
-    }
-
-    .muted-label {
-      fill: #666;
-      font-size: 12px;
-    }
-  </style>
+  /* ── Stat pills ── */
+  .stat-row {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-top: 18px;
+    padding-top: 14px;
+    border-top: 1px solid #f0f0f0;
+  }
+  .stat-pill {
+    flex: 1;
+    min-width: 110px;
+    background: #f7f9ff;
+    border-radius: 8px;
+    padding: 10px 14px;
+  }
+  .stat-pill .sp-label { font-size: 11px; color: #888; margin-bottom: 3px; }
+  .stat-pill .sp-value { font-size: 22px; font-weight: 700; color: #2f5aa8; }
+  .stat-pill .sp-sub   { font-size: 11px; color: #aaa; margin-top: 1px; }
+</style>
 </head>
 <body>
-  <div class="container">
-    <h1>Shipwreck Causes & Their Resulting Fatalities</h1>
+<div class="container">
+  <h1>Accidents &amp; Deaths Over Time</h1>
+  <p class="subtitle">
+    Number of shipwreck incidents (solid line) versus lives lost (dashed line) per decade, 1760–2000.
+    Select a cause tab to isolate that type, or view <strong>All</strong> for overall trends.
+  </p>
 
-    <div class="tabs" id="tabs"></div>
+  <div class="tab-row" id="tabs"></div>
 
-    <div class="chart-wrapper">
-      <svg id="chart" viewBox="0 0 1250 720"></svg>
-      <div class="legend" id="legend"></div>
-      <div class="annotation">
-        Top half: number of shipwrecks for the selected cause per decade.
-        Bottom half: deaths from that same cause per decade.
+  <div class="chart-card">
+    <div class="chart-header">
+      <div>
+        <div class="chart-title" id="chart-title">All Causes Combined</div>
+        <div class="chart-desc" id="chart-desc">Every recorded shipwreck incident on the Great Lakes</div>
+      </div>
+      <div class="legend">
+        <div class="leg-item">
+          <div class="leg-line" id="leg-acc" style="background:#2f5aa8"></div>
+          <span>Accidents</span>
+        </div>
+        <div class="leg-item">
+          <div class="leg-line leg-dashed" id="leg-dth" style="border-color:#c0392b; color:#c0392b"></div>
+          <span>Deaths</span>
+        </div>
       </div>
     </div>
-  </div>
 
-  <div class="tooltip" id="tooltip"></div>
+    <svg id="chart" viewBox="0 0 1100 440"></svg>
+
+    <div class="stat-row" id="stat-row"></div>
+  </div>
+</div>
+
+<div id="tooltip"></div>
 
 <script>
-  // At some point, fuse this file with the ApproxCoords_filled so you only have one source
-  const fileName = "GreatLakesShipwrecks.csv";
-
-  const svg = d3.select("#chart");
-  const tooltip = d3.select("#tooltip");
-
-  const width = 1250;
-  const height = 720;
-  const margin = { top: 35, right: 40, bottom: 65, left: 90 };
-  const innerWidth = width - margin.left - margin.right;
-  const innerHeight = height - margin.top - margin.bottom;
-  const centerY = innerHeight / 2;
-
-  const chartG = svg.append("g")
-    .attr("transform", `translate(${margin.left},${margin.top})`);
-
-  const tabsContainer = d3.select("#tabs");
-  const legendContainer = d3.select("#legend");
-
-  let rawData = [];
-  let currentCause = "Storm / Weather";
-
-  const lakeOrder = ["Superior", "Michigan", "Huron", "Erie", "Ontario"];
-
-  const lakeColor = d3.scaleOrdinal()
-    .domain(lakeOrder)
-    .range([
-      "#4e79a7", // Superior
-      "#59a14f", // Michigan
-      "#f28e2b", // Huron
-      "#e15759", // Erie
-      "#76b7b2"  // Ontario
-    ]);
-
-  const causeOrder = [
-    "Storm / Weather",
-    "Fire / Explosion",
-    "Collision",
-    "Grounding / Stranding",
-    "Ice",
-    "Mechanical Failure",
-    "Navigation Error"
-  ];
-
-  function normalizeLake(lake) {
-    if (!lake) return null;
-    const v = String(lake).trim().toLowerCase();
-    if (v.includes("superior")) return "Superior";
-    if (v.includes("mich")) return "Michigan";
-    if (v.includes("huron")) return "Huron";
-    if (v.includes("erie")) return "Erie";
-    if (v.includes("ontario")) return "Ontario";
-    return null;
-  }
-
-  function extractYear(dateStr) {
-    if (!dateStr) return null;
-    const match = String(dateStr).match(/\b(17|18|19|20)\d{2}\b/);
-    return match ? +match[0] : null;
-  }
-
-  function toDecade(year) {
-    return Math.floor(year / 10) * 10;
-  }
-
-  // puts the causes in the correct bins based on the keywords
-  function normalizeCause(cause) {
-    if (!cause || String(cause).trim() === "") return "Other / Unknown";
-
-    const c = String(cause).toLowerCase().trim();
-
-    if (c.includes("storm") || c.includes("gale") || c.includes("weather") || c.includes("fog")) {
-      return "Storm / Weather";
-    }
-
-    if (c.includes("fire") || c.includes("explosion") || c.includes("boiler")) {
-      return "Fire / Explosion";
-    }
-
-    if (c.includes("collision") || c.includes("collided") || c.includes("rammed")) {
-      return "Collision";
-    }
-
-    if (
-      c.includes("stranded") ||
-      c.includes("grounded") ||
-      c.includes("grounding") ||
-      c.includes("shoal") ||
-      c.includes("reef") ||
-      c.includes("wrecked")
-    ) {
-      return "Grounding / Stranding";
-    }
-
-    if (c.includes("ice")) {
-      return "Ice";
-    }
-
-    if (
-      c.includes("hull failure") ||
-      c.includes("mechanical failure") ||
-      c.includes("structural") ||
-      c.includes("leak") ||
-      c.includes("engine")
-    ) {
-      return "Mechanical Failure";
-    }
-
-    if (
-      c.includes("navigational error") ||
-      c.includes("navigation error") ||
-      c.includes("towing accident")
-    ) {
-      return "Navigation Error";
-    }
-
-    if (c === "?" || c.includes("unknown") || c.includes("unreported")) {
-      return "Other / Unknown";
-    }
-
-    if (
-      c.includes("foundered") ||
-      c.includes("sank") ||
-      c.includes("sunk") ||
-      c.includes("went missing") ||
-      c.includes("lost")
-    ) {
-      return "Sank / Foundered / Missing";
-    }
-
-    return "Other / Unknown";
-  }
-
-  function parseLossOfLife(value) {
-    if (value === null || value === undefined) return 0;
-    const raw = String(value).trim().toLowerCase();
-    if (raw === "" || raw === "none" || raw === "?" || raw === "nan") return 0;
-
-    const nums = raw.match(/\d+/g);
-    if (!nums) return 0;
-
-    // Keeps the higher number of fatalities in the situation it is like 5 or 6
-    return d3.max(nums.map(Number));
-  }
-
-  function preprocess(data) {
-    return data
-      .map(d => {
-        const year = extractYear(d.date_of_loss);
-        const lake = normalizeLake(d.lake);
-        const cause = normalizeCause(d.type_of_loss);
-        const deaths = parseLossOfLife(d.loss_of_life);
-
-        // Getting rid of these causes again for consistency with the other chart
-        if (
-          cause === "Sank / Foundered / Missing" ||
-          cause === "Other / Unknown"
-        ) {
-          return null;
-        }
-
-        return {
-          year,
-          decade: year !== null ? toDecade(year) : null,
-          lake,
-          cause,
-          deaths
-        };
-      })
-      .filter(d => d && d.year !== null && d.decade !== null && d.lake !== null);
-  }
-
-  function buildTabs() {
-    tabsContainer.selectAll("button")
-      .data(causeOrder)
-      .join("button")
-      .attr("class", d => d === currentCause ? "tab-btn active" : "tab-btn")
-      .text(d => d)
-      .on("click", (event, d) => {
-        currentCause = d;
-        buildTabs();
-        renderChart();
-      });
-  }
-
-  function buildLegend() {
-    legendContainer.selectAll(".legend-item")
-      .data(lakeOrder)
-      .join("div")
-      .attr("class", "legend-item")
-      .html(d => `
-        <span class="legend-swatch" style="background:${lakeColor(d)};"></span>
-        <span>${d}</span>
-      `);
-  }
-
-  function buildDecadeSeries(filteredData) {
-    const decades = filteredData.map(d => d.decade);
-    const minDecade = d3.min(decades);
-    const maxDecade = d3.max(decades);
-    const allDecades = d3.range(minDecade, maxDecade + 1, 10);
-
-    const countGrouped = d3.rollup(
-      filteredData,
-      v => v.length,
-      d => d.decade,
-      d => d.lake
-    );
-
-    const deathGrouped = d3.rollup(
-      filteredData,
-      v => d3.sum(v, d => d.deaths),
-      d => d.decade,
-      d => d.lake
-    );
-
-    const rows = allDecades.map(decade => {
-      const countRow = { decade };
-      const deathRow = { decade };
-
-      lakeOrder.forEach(lake => {
-        countRow[lake] = countGrouped.get(decade)?.get(lake) || 0;
-        deathRow[lake] = deathGrouped.get(decade)?.get(lake) || 0;
-      });
-
-      return { countRow, deathRow };
-    });
-
-    return {
-      countSeries: rows.map(d => d.countRow),
-      deathSeries: rows.map(d => d.deathRow),
-      minDecade,
-      maxDecade
-    };
-  }
-
-  function renderChart() {
-    chartG.selectAll("*").remove();
-
-    const filtered = rawData.filter(d => d.cause === currentCause);
-    const { countSeries, deathSeries, minDecade, maxDecade } = buildDecadeSeries(filtered);
-
-    if (!countSeries.length) {
-      chartG.append("text")
-        .attr("x", innerWidth / 2)
-        .attr("y", centerY)
-        .attr("text-anchor", "middle")
-        .attr("font-size", 18)
-        .text("No usable data for this cause.");
-      return;
-    }
-
-    const countStack = d3.stack()
-      .keys(lakeOrder)
-      .order(d3.stackOrderAscending);
-
-    const deathStack = d3.stack()
-      .keys(lakeOrder)
-      .order(d3.stackOrderAscending);
-
-    const countLayers = countStack(countSeries);
-    const deathLayers = deathStack(deathSeries);
-
-    const x = d3.scaleLinear()
-      .domain([minDecade, maxDecade])
-      .range([0, innerWidth]);
-
-    const maxCount = d3.max(countSeries, d => d3.sum(lakeOrder, key => d[key])) || 1;
-    const maxDeaths = d3.max(deathSeries, d => d3.sum(lakeOrder, key => d[key])) || 1;
-
-    const topY = d3.scaleLinear()
-      .domain([0, maxCount])
-      .nice()
-      .range([centerY, 0]);
-
-    const bottomY = d3.scaleLinear()
-      .domain([0, maxDeaths])
-      .nice()
-      .range([centerY, innerHeight]);
-
-    const xAxis = d3.axisBottom(x)
-      .tickFormat(d => `${d}s`)
-      .ticks(Math.min(14, Math.max(2, (maxDecade - minDecade) / 10)));
-
-    const topYAxis = d3.axisLeft(topY).ticks(5);
-    const bottomYAxis = d3.axisLeft(bottomY).ticks(5);
-
-    const topGrid = d3.axisLeft(topY)
-      .tickSize(-innerWidth)
-      .tickFormat("")
-      .ticks(5);
-
-    const bottomGrid = d3.axisLeft(bottomY)
-      .tickSize(-innerWidth)
-      .tickFormat("")
-      .ticks(5);
-
-    chartG.append("g")
-      .attr("class", "grid")
-      .call(topGrid);
-
-    chartG.append("g")
-      .attr("class", "grid")
-      .call(bottomGrid);
-
-    const topArea = d3.area()
-      .x(d => x(d.data.decade))
-      .y0(d => topY(d[0]))
-      .y1(d => topY(d[1]))
-      .curve(d3.curveCatmullRom.alpha(0.5));
-
-    const bottomArea = d3.area()
-      .x(d => x(d.data.decade))
-      .y0(d => bottomY(d[0]))
-      .y1(d => bottomY(d[1]))
-      .curve(d3.curveCatmullRom.alpha(0.5));
-
-    chartG.selectAll(".top-layer")
-      .data(countLayers)
-      .join("path")
-      .attr("class", "layer top-layer")
-      .attr("fill", d => lakeColor(d.key))
-      .attr("d", topArea)
-      .on("mousemove", function(event, layer) {
-        showTooltip(event, layer, countSeries, deathSeries, x, "Shipwrecks");
-      })
-      .on("mouseleave", () => tooltip.style("opacity", 0));
-
-    chartG.selectAll(".bottom-layer")
-      .data(deathLayers)
-      .join("path")
-      .attr("class", "layer bottom-layer")
-      .attr("fill", d => lakeColor(d.key))
-      .attr("d", bottomArea)
-      .on("mousemove", function(event, layer) {
-        showTooltip(event, layer, countSeries, deathSeries, x, "Fatalities");
-      })
-      .on("mouseleave", () => tooltip.style("opacity", 0));
-
-    chartG.append("line")
-      .attr("class", "baseline")
-      .attr("x1", 0)
-      .attr("x2", innerWidth)
-      .attr("y1", centerY)
-      .attr("y2", centerY);
-
-    chartG.append("g")
-      .attr("class", "axis")
-      .attr("transform", `translate(0, ${innerHeight})`)
-      .call(xAxis);
-
-    chartG.append("g")
-      .attr("class", "axis")
-      .call(topYAxis);
-
-    chartG.append("g")
-      .attr("class", "axis")
-      .call(bottomYAxis);
-
-    chartG.append("text")
-      .attr("class", "axis-title")
-      .attr("x", innerWidth / 2)
-      .attr("y", innerHeight + 46)
-      .attr("text-anchor", "middle")
-      .text("Decade");
-
-    chartG.append("text")
-      .attr("class", "axis-title")
-      .attr("transform", "rotate(-90)")
-      .attr("x", -centerY / 2)
-      .attr("y", -62)
-      .attr("text-anchor", "middle")
-      .text("Number of Shipwrecks");
-
-    chartG.append("text")
-      .attr("class", "axis-title")
-      .attr("transform", "rotate(-90)")
-      .attr("x", -(centerY + (innerHeight - centerY) / 2))
-      .attr("y", -62)
-      .attr("text-anchor", "middle")
-      .text("Fatalities");
-
-    chartG.append("text")
-      .attr("class", "section-label")
-      .attr("x", 0)
-      .attr("y", -10)
-      .text(`Accidents`);
-
-    chartG.append("text")
-      .attr("class", "section-label")
-      .attr("x", 0)
-      .attr("y", centerY + 24)
-      .text(`Deaths`);
-
-    chartG.append("text")
-      .attr("class", "muted-label")
-      .attr("x", innerWidth)
-      .attr("y", centerY - 8)
-      .attr("text-anchor", "end");
-  }
-
-  function showTooltip(event, layer, countSeries, deathSeries, x, section) {
-    const [mx] = d3.pointer(event, chartG.node());
-    const hoveredDecade = Math.round(x.invert(mx) / 10) * 10;
-
-    const countRow = countSeries.find(d => d.decade === hoveredDecade);
-    const deathRow = deathSeries.find(d => d.decade === hoveredDecade);
-    if (!countRow || !deathRow) return;
-
-    const lake = layer.key;
-    const countValue = countRow[lake] || 0;
-    const deathValue = deathRow[lake] || 0;
-    const totalCount = d3.sum(lakeOrder, key => countRow[key]);
-    const totalDeaths = d3.sum(lakeOrder, key => deathRow[key]);
-
-    tooltip
-      .style("opacity", 1)
-      .html(`
-        <strong>${currentCause}</strong><br>
-        <strong>Lake:</strong> ${lake}<br>
-        <strong>Decade:</strong> ${hoveredDecade}s<br>
-        <strong>Shipwrecks:</strong> ${countValue}<br>
-        <strong>Fatalities:</strong> ${deathValue}<br>
-        <strong>Total wrecks for cause:</strong> ${totalCount}<br>
-        <strong>Total deaths for cause:</strong> ${totalDeaths}<br>
-        <em>Hovered section: ${section}</em>
-      `)
-      .style("left", (event.pageX + 14) + "px")
-      .style("top", (event.pageY - 18) + "px");
-  }
-
-  d3.csv(fileName).then(data => {
-    rawData = preprocess(data);
-    buildTabs();
-    buildLegend();
-    renderChart();
-  }).catch(error => {
-    console.error("Error loading CSV:", error);
-    alert("Could not load the CSV file. Make sure this HTML file and the CSV file are in the same folder, and check the fileName variable near the top of the script.");
+// ── DATA ──────────────────────────────────────────────────────────────────────
+const RAW = {"decades":[1760,1770,1780,1790,1800,1810,1820,1830,1840,1850,1860,1870,1880,1890,1900,1910,1920,1930,1940,1950,1960,1970,1980,1990,2000],"data":{"Storm":{"1760":{"a":4,"d":0},"1770":{"a":1,"d":25},"1780":{"a":2,"d":145},"1790":{"a":3,"d":0},"1800":{"a":4,"d":40},"1810":{"a":11,"d":84},"1820":{"a":26,"d":89},"1830":{"a":49,"d":108},"1840":{"a":103,"d":323},"1850":{"a":298,"d":681},"1860":{"a":317,"d":598},"1870":{"a":405,"d":632},"1880":{"a":452,"d":932},"1890":{"a":349,"d":380},"1900":{"a":335,"d":456},"1910":{"a":175,"d":681},"1920":{"a":83,"d":223},"1930":{"a":33,"d":74},"1940":{"a":25,"d":103},"1950":{"a":15,"d":117},"1960":{"a":8,"d":53},"1970":{"a":7,"d":31},"1980":{"a":4,"d":6},"1990":{"a":3,"d":1},"2000":{"a":1,"d":2}},"Fire":{"1760":{"a":0,"d":0},"1770":{"a":0,"d":0},"1780":{"a":0,"d":0},"1790":{"a":0,"d":0},"1800":{"a":0,"d":0},"1810":{"a":6,"d":0},"1820":{"a":1,"d":5},"1830":{"a":4,"d":56},"1840":{"a":19,"d":366},"1850":{"a":41,"d":612},"1860":{"a":58,"d":234},"1870":{"a":96,"d":103},"1880":{"a":108,"d":105},"1890":{"a":139,"d":34},"1900":{"a":146,"d":46},"1910":{"a":113,"d":5},"1920":{"a":86,"d":7},"1930":{"a":45,"d":16},"1940":{"a":17,"d":131},"1950":{"a":15,"d":12},"1960":{"a":2,"d":1},"1970":{"a":5,"d":7},"1980":{"a":0,"d":0},"1990":{"a":2,"d":1},"2000":{"a":0,"d":0}},"Collision":{"1760":{"a":0,"d":0},"1770":{"a":0,"d":0},"1780":{"a":0,"d":0},"1790":{"a":0,"d":0},"1800":{"a":0,"d":0},"1810":{"a":0,"d":0},"1820":{"a":0,"d":0},"1830":{"a":1,"d":0},"1840":{"a":8,"d":10},"1850":{"a":38,"d":281},"1860":{"a":51,"d":507},"1870":{"a":37,"d":19},"1880":{"a":40,"d":24},"1890":{"a":54,"d":64},"1900":{"a":46,"d":39},"1910":{"a":26,"d":33},"1920":{"a":19,"d":42},"1930":{"a":11,"d":4},"1940":{"a":5,"d":14},"1950":{"a":8,"d":2},"1960":{"a":3,"d":10},"1970":{"a":2,"d":0},"1980":{"a":3,"d":1},"1990":{"a":2,"d":6},"2000":{"a":0,"d":0}},"Grounding":{"1760":{"a":0,"d":0},"1770":{"a":0,"d":0},"1780":{"a":0,"d":0},"1790":{"a":1,"d":0},"1800":{"a":0,"d":0},"1810":{"a":0,"d":0},"1820":{"a":2,"d":0},"1830":{"a":3,"d":0},"1840":{"a":3,"d":0},"1850":{"a":9,"d":0},"1860":{"a":5,"d":0},"1870":{"a":7,"d":0},"1880":{"a":14,"d":0},"1890":{"a":5,"d":0},"1900":{"a":18,"d":0},"1910":{"a":6,"d":0},"1920":{"a":6,"d":0},"1930":{"a":1,"d":0},"1940":{"a":0,"d":0},"1950":{"a":2,"d":0},"1960":{"a":0,"d":0},"1970":{"a":0,"d":0},"1980":{"a":1,"d":0},"1990":{"a":1,"d":0},"2000":{"a":0,"d":0}},"Ice":{"1760":{"a":0,"d":0},"1770":{"a":0,"d":0},"1780":{"a":0,"d":0},"1790":{"a":0,"d":0},"1800":{"a":0,"d":0},"1810":{"a":1,"d":0},"1820":{"a":0,"d":0},"1830":{"a":0,"d":0},"1840":{"a":1,"d":0},"1850":{"a":2,"d":0},"1860":{"a":5,"d":0},"1870":{"a":4,"d":0},"1880":{"a":8,"d":0},"1890":{"a":9,"d":0},"1900":{"a":13,"d":7},"1910":{"a":5,"d":0},"1920":{"a":2,"d":0},"1930":{"a":0,"d":0},"1940":{"a":1,"d":0},"1950":{"a":1,"d":12},"1960":{"a":0,"d":0},"1970":{"a":1,"d":0},"1980":{"a":0,"d":0},"1990":{"a":0,"d":0},"2000":{"a":0,"d":0}},"Mechanical":{"1760":{"a":0,"d":0},"1770":{"a":0,"d":0},"1780":{"a":0,"d":0},"1790":{"a":0,"d":0},"1800":{"a":0,"d":0},"1810":{"a":1,"d":0},"1820":{"a":0,"d":0},"1830":{"a":1,"d":0},"1840":{"a":0,"d":0},"1850":{"a":9,"d":8},"1860":{"a":3,"d":0},"1870":{"a":13,"d":0},"1880":{"a":9,"d":2},"1890":{"a":7,"d":0},"1900":{"a":16,"d":9},"1910":{"a":6,"d":0},"1920":{"a":5,"d":0},"1930":{"a":0,"d":0},"1940":{"a":2,"d":0},"1950":{"a":4,"d":3},"1960":{"a":1,"d":0},"1970":{"a":0,"d":0},"1980":{"a":0,"d":0},"1990":{"a":1,"d":0},"2000":{"a":0,"d":0}},"Navigation Error":{"1760":{"a":0,"d":0},"1770":{"a":0,"d":0},"1780":{"a":0,"d":0},"1790":{"a":0,"d":0},"1800":{"a":0,"d":0},"1810":{"a":0,"d":0},"1820":{"a":1,"d":0},"1830":{"a":0,"d":0},"1840":{"a":0,"d":0},"1850":{"a":4,"d":0},"1860":{"a":4,"d":0},"1870":{"a":4,"d":0},"1880":{"a":6,"d":0},"1890":{"a":0,"d":0},"1900":{"a":3,"d":1},"1910":{"a":3,"d":0},"1920":{"a":5,"d":12},"1930":{"a":2,"d":4},"1940":{"a":4,"d":43},"1950":{"a":2,"d":6},"1960":{"a":1,"d":0},"1970":{"a":0,"d":0},"1980":{"a":0,"d":0},"1990":{"a":0,"d":0},"2000":{"a":0,"d":0}},"Other":{"1760":{"a":0,"d":0},"1770":{"a":1,"d":17},"1780":{"a":0,"d":0},"1790":{"a":0,"d":0},"1800":{"a":1,"d":0},"1810":{"a":3,"d":0},"1820":{"a":1,"d":0},"1830":{"a":5,"d":26},"1840":{"a":7,"d":17},"1850":{"a":24,"d":68},"1860":{"a":17,"d":87},"1870":{"a":23,"d":34},"1880":{"a":29,"d":218},"1890":{"a":35,"d":47},"1900":{"a":22,"d":40},"1910":{"a":23,"d":853},"1920":{"a":15,"d":27},"1930":{"a":14,"d":18},"1940":{"a":9,"d":2},"1950":{"a":11,"d":6},"1960":{"a":4,"d":2},"1970":{"a":3,"d":0},"1980":{"a":2,"d":3},"1990":{"a":3,"d":3},"2000":{"a":1,"d":2}},"All":{"1760":{"a":4,"d":0},"1770":{"a":2,"d":42},"1780":{"a":2,"d":145},"1790":{"a":4,"d":0},"1800":{"a":5,"d":40},"1810":{"a":22,"d":84},"1820":{"a":31,"d":94},"1830":{"a":63,"d":190},"1840":{"a":141,"d":716},"1850":{"a":425,"d":1650},"1860":{"a":460,"d":1426},"1870":{"a":589,"d":788},"1880":{"a":666,"d":1281},"1890":{"a":598,"d":525},"1900":{"a":599,"d":598},"1910":{"a":357,"d":1572},"1920":{"a":221,"d":311},"1930":{"a":106,"d":116},"1940":{"a":63,"d":293},"1950":{"a":58,"d":158},"1960":{"a":19,"d":66},"1970":{"a":18,"d":38},"1980":{"a":10,"d":10},"1990":{"a":12,"d":11},"2000":{"a":2,"d":4}}}};
+const DECADES = RAW.decades;
+const DATA    = RAW.data;
+
+const CAUSE_META = {
+  'All':            { label: 'All Causes',      color: '#2f5aa8', desc: 'Every recorded shipwreck incident on the Great Lakes' },
+  'Storm':          { label: 'Storm / Weather',  color: '#4a90e8', desc: 'Wrecks caused by storms, gales, heavy weather, and fog' },
+  'Fire':           { label: 'Fire / Explosion', color: '#e05a3a', desc: 'Fires, boiler explosions, and onboard conflagrations' },
+  'Collision':      { label: 'Collision',        color: '#f0b040', desc: 'Ship-to-ship collisions and vessel strikes' },
+  'Grounding':      { label: 'Grounding',        color: '#b07040', desc: 'Ships that ran aground on shoals, reefs, or shorelines' },
+  'Ice':            { label: 'Ice',              color: '#3db86a', desc: 'Vessels trapped or crushed by lake ice' },
+  'Mechanical':     { label: 'Mechanical',       color: '#9d7cd6', desc: 'Hull failures, engine failures, and structural loss' },
+  'Navigation Error':{ label: 'Navigation Error',color: '#d966c8', desc: 'Navigational errors and towing accidents' },
+  'Other':          { label: 'Other / Unknown',  color: '#888888', desc: 'Foundered, sank for unknown reasons, or unreported cause' },
+};
+
+const CAUSES = Object.keys(CAUSE_META);
+
+// ── SVG SETUP ─────────────────────────────────────────────────────────────────
+const svg    = d3.select('#chart');
+const W = 1100, H = 440;
+const margin = { top: 24, right: 60, bottom: 52, left: 68 };
+const iW = W - margin.left - margin.right;
+const iH = H - margin.top  - margin.bottom;
+
+const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+
+// Grid + Axes groups (appended first so they sit behind lines)
+const gGrid = g.append('g').attr('class','grid');
+const gXAxis = g.append('g').attr('class','axis').attr('transform',`translate(0,${iH})`);
+const gYLeft  = g.append('g').attr('class','axis');
+const gYRight = g.append('g').attr('class','axis').attr('transform',`translate(${iW},0)`);
+
+// Axis titles
+const xTitle = g.append('text').attr('class','axis-title')
+  .attr('text-anchor','middle').attr('x', iW/2).attr('y', iH+44);
+
+const yLeftTitle = g.append('text').attr('class','axis-title')
+  .attr('transform','rotate(-90)')
+  .attr('text-anchor','middle').attr('x',-iH/2).attr('y',-52);
+
+const yRightTitle = g.append('text').attr('class','axis-title')
+  .attr('transform','rotate(-90)')
+  .attr('text-anchor','middle').attr('x',-iH/2).attr('y', iW+50);
+
+// Area + line groups
+const gAreas = g.append('g');
+const gLines = g.append('g');
+const gDots  = g.append('g');
+
+// Tooltip
+const tip = d3.select('#tooltip');
+
+// ── STATE ─────────────────────────────────────────────────────────────────────
+let current = 'All';
+
+// ── TABS ──────────────────────────────────────────────────────────────────────
+const tabRow = d3.select('#tabs');
+
+tabRow.selectAll('.tab-btn')
+  .data(CAUSES)
+  .join('button')
+  .attr('class', d => `tab-btn${d === current ? ' active' : ''}`)
+  .html(d => {
+    const m = CAUSE_META[d];
+    return d === 'All'
+      ? '<span style="font-size:15px">⬡</span> All'
+      : `<span class="tab-swatch" style="background:${m.color}"></span>${m.label}`;
+  })
+  .on('click', function(event, d) {
+    current = d;
+    d3.selectAll('.tab-btn').classed('active', dd => dd === d);
+    renderChart(d);
   });
+
+// ── RENDER ────────────────────────────────────────────────────────────────────
+function renderChart(cause) {
+  const meta   = CAUSE_META[cause];
+  const cData  = DATA[cause];
+  const accColor = meta.color;
+  const dthColor = '#c0392b';
+
+  // Filter to decades with at least some data around that range
+  const firstActive = DECADES.findIndex(d => cData[d].a > 0 || cData[d].d > 0);
+  const lastActive  = DECADES.length - 1 - [...DECADES].reverse().findIndex(d => cData[d].a > 0 || cData[d].d > 0);
+  // Give a bit of padding
+  const startIdx = Math.max(0, firstActive - 1);
+  const endIdx   = Math.min(DECADES.length - 1, lastActive + 1);
+  const visDecades = DECADES.slice(startIdx, endIdx + 1);
+
+  const accSeries = visDecades.map(d => ({ d, v: cData[d].a }));
+  const dthSeries = visDecades.map(d => ({ d, v: cData[d].d }));
+
+  const maxAcc = d3.max(accSeries, d => d.v) || 1;
+  const maxDth = d3.max(dthSeries, d => d.v) || 1;
+
+  // Scales
+  const x = d3.scaleLinear()
+    .domain([d3.min(visDecades), d3.max(visDecades)])
+    .range([0, iW]);
+
+  const yL = d3.scaleLinear()
+    .domain([0, maxAcc * 1.12])
+    .nice()
+    .range([iH, 0]);
+
+  const yR = d3.scaleLinear()
+    .domain([0, maxDth * 1.12])
+    .nice()
+    .range([iH, 0]);
+
+  // ── Axes ──
+  gXAxis.transition().duration(400).call(
+    d3.axisBottom(x)
+      .tickValues(visDecades.filter((_,i) => i % 2 === 0))
+      .tickFormat(d => `${d}s`)
+  );
+
+  gYLeft.transition().duration(400).call(d3.axisLeft(yL).ticks(6));
+  gYRight.transition().duration(400).call(
+    d3.axisRight(yR).ticks(6).tickFormat(d3.format(','))
+  );
+
+  // ── Grid ──
+  gGrid.transition().duration(400).call(
+    d3.axisLeft(yL).ticks(6).tickSize(-iW).tickFormat('')
+  );
+  gGrid.selectAll('line').style('stroke','#f0f0f0');
+  gGrid.selectAll('path').style('stroke','none');
+
+  // ── Axis labels ──
+  xTitle.text('Decade');
+  yLeftTitle.text('Number of Accidents');
+  yRightTitle.text('Number of Deaths');
+
+  // ── Areas ──
+  const areaAcc = d3.area()
+    .x(d => x(d.d))
+    .y0(iH)
+    .y1(d => yL(d.v))
+    .curve(d3.curveCatmullRom.alpha(0.5));
+
+  const areaDth = d3.area()
+    .x(d => x(d.d))
+    .y0(iH)
+    .y1(d => yR(d.v))
+    .curve(d3.curveCatmullRom.alpha(0.5));
+
+  // Remove old, redraw
+  gAreas.selectAll('*').remove();
+
+  gAreas.append('path')
+    .datum(accSeries)
+    .attr('class','area-accidents')
+    .attr('fill', accColor)
+    .attr('d', areaAcc);
+
+  gAreas.append('path')
+    .datum(dthSeries)
+    .attr('class','area-deaths')
+    .attr('fill', dthColor)
+    .attr('d', areaDth);
+
+  // ── Lines ──
+  const lineAcc = d3.line()
+    .x(d => x(d.d))
+    .y(d => yL(d.v))
+    .curve(d3.curveCatmullRom.alpha(0.5));
+
+  const lineDth = d3.line()
+    .x(d => x(d.d))
+    .y(d => yR(d.v))
+    .curve(d3.curveCatmullRom.alpha(0.5));
+
+  gLines.selectAll('*').remove();
+
+  // Accidents line
+  const accPath = gLines.append('path')
+    .datum(accSeries)
+    .attr('class','line-accidents')
+    .attr('stroke', accColor)
+    .attr('d', lineAcc);
+
+  // Animate
+  const accLen = accPath.node().getTotalLength();
+  accPath.attr('stroke-dasharray', accLen)
+    .attr('stroke-dashoffset', accLen)
+    .transition().duration(700).ease(d3.easeQuadOut)
+    .attr('stroke-dashoffset', 0);
+
+  // Deaths line
+  const dthPath = gLines.append('path')
+    .datum(dthSeries)
+    .attr('class','line-deaths')
+    .attr('stroke', dthColor)
+    .attr('d', lineDth);
+
+  const dthLen = dthPath.node().getTotalLength();
+  dthPath.attr('stroke-dasharray', `6 3, ${dthLen}`)
+    .attr('stroke-dashoffset', dthLen)
+    .transition().duration(700).delay(150).ease(d3.easeQuadOut)
+    .attr('stroke-dashoffset', 0);
+
+  // ── Dots ──
+  gDots.selectAll('*').remove();
+
+  // Accident dots
+  gDots.selectAll('.dot-acc')
+    .data(accSeries.filter(d => d.v > 0))
+    .join('circle')
+    .attr('class','dot dot-acc')
+    .attr('cx', d => x(d.d))
+    .attr('cy', d => yL(d.v))
+    .attr('r', 4)
+    .attr('fill', accColor)
+    .attr('stroke','#fff')
+    .attr('stroke-width', 1.5)
+    .on('mouseover', function(event, d) {
+      const dthVal = cData[d.d].d;
+      tip.style('opacity', 1)
+        .html(`<strong>${d.d}s</strong>
+          <span class="t-acc">&#9679; Accidents: ${d.v}</span>
+          <span class="t-dth">&#9679; Deaths: ${dthVal}</span>
+          ${d.v > 0 ? `<span style="color:#aaa">Mortality rate: ${(dthVal/d.v*100).toFixed(1)}%</span>` : ''}
+        `);
+      moveTip(event);
+    })
+    .on('mousemove', moveTip)
+    .on('mouseout', () => tip.style('opacity', 0));
+
+  // Death dots
+  gDots.selectAll('.dot-dth')
+    .data(dthSeries.filter(d => d.v > 0))
+    .join('circle')
+    .attr('class','dot dot-dth')
+    .attr('cx', d => x(d.d))
+    .attr('cy', d => yR(d.v))
+    .attr('r', 4)
+    .attr('fill', dthColor)
+    .attr('stroke','#fff')
+    .attr('stroke-width', 1.5)
+    .on('mouseover', function(event, d) {
+      const accVal = cData[d.d].a;
+      tip.style('opacity', 1)
+        .html(`<strong>${d.d}s</strong>
+          <span class="t-acc">&#9679; Accidents: ${accVal}</span>
+          <span class="t-dth">&#9679; Deaths: ${d.v}</span>
+          ${accVal > 0 ? `<span style="color:#aaa">Mortality rate: ${(d.v/accVal*100).toFixed(1)}%</span>` : ''}
+        `);
+      moveTip(event);
+    })
+    .on('mousemove', moveTip)
+    .on('mouseout', () => tip.style('opacity', 0));
+
+  // ── Update legend accent colors ──
+  d3.select('#leg-acc').style('background', accColor);
+
+  // ── Header ──
+  d3.select('#chart-title').text(meta.label === 'All Causes' ? 'All Causes Combined' : `Cause: ${meta.label}`);
+  d3.select('#chart-desc').text(meta.desc);
+
+  // ── Stat pills ──
+  const totalAcc  = d3.sum(accSeries, d => d.v);
+  const totalDth  = d3.sum(dthSeries, d => d.v);
+  const peakAcc   = accSeries.reduce((best,d) => d.v > best.v ? d : best, {v:0});
+  const peakDth   = dthSeries.reduce((best,d) => d.v > best.v ? d : best, {v:0});
+  const mortality = totalAcc > 0 ? (totalDth / totalAcc * 100).toFixed(1) : '—';
+
+  d3.select('#stat-row').html(`
+    <div class="stat-pill">
+      <div class="sp-label">Total Accidents</div>
+      <div class="sp-value" style="color:${accColor}">${totalAcc.toLocaleString()}</div>
+      <div class="sp-sub">across all decades</div>
+    </div>
+    <div class="stat-pill">
+      <div class="sp-label">Total Deaths</div>
+      <div class="sp-value" style="color:#c0392b">${totalDth.toLocaleString()}</div>
+      <div class="sp-sub">recorded fatalities</div>
+    </div>
+    <div class="stat-pill">
+      <div class="sp-label">Mortality Rate</div>
+      <div class="sp-value" style="color:#666">${mortality}%</div>
+      <div class="sp-sub">deaths per accident</div>
+    </div>
+    <div class="stat-pill">
+      <div class="sp-label">Peak Accidents</div>
+      <div class="sp-value" style="color:${accColor}">${peakAcc.v}</div>
+      <div class="sp-sub">${peakAcc.v > 0 ? peakAcc.d + 's decade' : '—'}</div>
+    </div>
+    <div class="stat-pill">
+      <div class="sp-label">Deadliest Decade</div>
+      <div class="sp-value" style="color:#c0392b">${peakDth.v}</div>
+      <div class="sp-sub">${peakDth.v > 0 ? peakDth.d + 's decade' : '—'}</div>
+    </div>
+  `);
+}
+
+function moveTip(event) {
+  const x = event.clientX, y = event.clientY;
+  tip.style('left', (x + (x + 215 > window.innerWidth ? -220 : 14)) + 'px')
+     .style('top',  (y - 10) + 'px');
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+renderChart('All');
 </script>
 </body>
 </html>

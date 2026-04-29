@@ -345,22 +345,6 @@
         tooltip.style("opacity", 0);
       });
 
-    stacked.forEach(layer => {
-      let bestDecade = null, bestHeight = 0;
-      series.forEach(row => {
-        if (row[layer.key] > bestHeight) { bestHeight = row[layer.key]; bestDecade = row.decade; }
-      });
-      if (bestHeight < 7) return;
-      const stackRow = layer.find(d => d.data.decade === bestDecade);
-      if (!stackRow) return;
-      chartG.append("text")
-        .attr("class", "area-label")
-        .attr("x", xScale(bestDecade))
-        .attr("y", yScale((stackRow[0] + stackRow[1]) / 2) + 4)
-        .attr("text-anchor", "middle")
-        .attr("dominant-baseline", "middle")
-        .text(layer.key);
-    });
   }
 
   // ── load ─────────────────────────────────────────────────────────────
@@ -368,7 +352,8 @@
   d3.csv(FILE).then(data => {
     rawData = preprocess(data);
     const decades = rawData.map(d => d.decade);
-    globalMinDecade = d3.min(decades);
+    // Changed to 1760 and beyond to exclude the small number of wrecks that happended before
+    globalMinDecade = Math.max(1760, d3.min(decades));
     globalMaxDecade = d3.max(decades);
     xScale.domain([globalMinDecade, globalMaxDecade]);
 
